@@ -2,6 +2,7 @@ package task
 
 import (
 	"log"
+	"time"
 
 	"github.com/nzai/stockrecorder/stock"
 )
@@ -11,15 +12,20 @@ func StartTasks() error {
 	log.Print("启动任务")
 	channel := make(chan int)
 
-	//timer := time.NewTimer(time.Minute * 1)
-	go func() {
-		err := stock.GetToday()
-		if err != nil {
-			log.Fatal(err)
-		}
+	now := time.Now().UTC()
+	tomorrow := now.AddDate(0, 0, 1)
+	tomorrowZero := tomorrow.Truncate(time.Hour * 24)
 
-		channel <- 0
-	}()
+	d := tomorrowZero.Sub(now)
+	time.AfterFunc(d, func() {
+		ticker := time.NewTicker(time.Hour * 24)
+		for _ = range ticker.C {
+			err := stock.GetToday()
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	})
 
 	<-channel
 
