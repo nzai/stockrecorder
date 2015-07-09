@@ -3,11 +3,16 @@ package stock
 import (
 	"fmt"
 	"log"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/nzai/stockrecorder/config"
 	"github.com/nzai/stockrecorder/io"
+)
+
+const (
+	RawDataDir = "raw"
 )
 
 func GetStocks() []string {
@@ -46,14 +51,12 @@ func getStockToday(code string) error {
 	pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%7Csplit%7Cearn&corsDomain=finance.yahoo.com"
 	start, end := getTimeRange(code)
 	url := fmt.Sprintf(pattern, code, end.Unix(), start.Unix())
-	html, err := io.GetString(url)
+	raw, err := io.GetString(url)
 	if err != nil {
 		return err
 	}
 
-	log.Print(html)
-
-	return nil
+	return saveRaw(code, raw)
 }
 
 //	获取股票的交易起始时间
@@ -71,8 +74,16 @@ func getTimeRange(code string) (time.Time, time.Time) {
 		time.Date(now.Year(), now.Month(), now.Day(), 20, 00, 0, 0, now.Location())
 }
 
-func parseHtml(html string) ([]string, error) {
+//	保存原始数据
+func saveRaw(code, raw string) error {
 
+	dataDir, err := config.GetDataDir()
+	if err != nil {
+		return err
+	}
+
+	fileName := fmt.Sprintf("%s_raw.txt", time.Now().UTC().Format("20060102"))
+	filePath := filepath.Join(dataDir, code, fileName)
+
+	return io.WriteString(filePath, raw)
 }
-
-func substr(html)
