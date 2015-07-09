@@ -21,9 +21,6 @@ func main() {
 	root := filepath.Dir(os.Args[0])
 	filename := filepath.Join(root, configFileName)
 
-	//	使用所有cpu
-	//	runtime.GOMAXPROCS(runtime.NumCPU() - 1)
-
 	//	读取配置文件
 	err := config.SetConfigFile(filename)
 	if err != nil {
