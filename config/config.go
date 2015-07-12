@@ -43,9 +43,14 @@ func SetConfigFile(filePath string) error {
 	return nil
 }
 
-//	获取配置
+//	获取字符串
 func GetString(section, key, defaultValue string) string {
 	return configInstance.MustValue(section, key, defaultValue)
+}
+
+//	获取字符串数组
+func GetArray(section, key string) []string {
+	return configInstance.MustValueArray(section, key, ",")
 }
 
 //	获取数据保存目录
