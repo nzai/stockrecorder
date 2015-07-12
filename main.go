@@ -28,19 +28,8 @@ func main() {
 		return
 	}
 
-	//	日志文件路径
-	logPath := config.GetString(configLogSection, configLogKey, configLogDefaultFileName)
-	logDir := filepath.Dir(logPath)
-	_, err = os.Stat(logDir)
-	if os.IsNotExist(err) {
-		err = os.Mkdir(logDir, 0x777)
-		if err != nil {
-			log.Fatal(err)
-			return
-		}
-	}
-
-	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0x777)
+	//	打开日志文件
+	file, err := openLogFile()
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -56,4 +45,24 @@ func main() {
 		log.Fatal(err)
 		return
 	}
+
+	//	阻塞，一直运行
+	channel := make(chan int)
+	<-channel
+}
+
+//	打开日志文件
+func openLogFile() (*os.File, error) {
+	//	日志文件路径
+	logPath := config.GetString(configLogSection, configLogKey, configLogDefaultFileName)
+	logDir := filepath.Dir(logPath)
+	_, err := os.Stat(logDir)
+	if os.IsNotExist(err) {
+		err = os.Mkdir(logDir, 0x644)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0x644)
 }
