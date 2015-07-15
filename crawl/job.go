@@ -1,40 +1,77 @@
 package crawl
 
 import (
+	"errors"
+	"fmt"
 	"log"
+	"strconv"
+	"time"
 
 	"github.com/nzai/stockrecorder/config"
 )
 
-func StartJobs() {
-	log.Print("启动数据抓取任务")
+//	启动
+func Start() {
 
 	markets := config.GetArray("market", "markets")
 	if len(markets) == 0 {
+		//	未定义市场就直接返回
 		return
 	}
 
 	for _, market := range markets {
-		err := crawlMarket(market)
+		//	抓取市场数据
+		err := marketJob(market)
 		if err != nil {
 			log.Fatalf("启动[%s]数据抓取任务失败:%v", market, err)
 		}
 	}
 }
 
-//	抓取市场数据
-func crawlMarket(market string) error {
-	//	抓取今天的数据
-	err := today(market)
+//	抓取市场数据任务
+func marketJob(market string) error {
+	//	任务启动时间(hour)
+	starthour := config.GetString(market, "starthour", "")
+	if starthour == "" {
+		return errors.New(fmt.Sprintf("市场[%s]的starthour配置有误", market))
+	}
+
+	hour, err := strconv.Atoi(starthour)
 	if err != nil {
 		return err
 	}
 
-	//	抓取历史数据
-	err = history(market)
-	if err != nil {
-		return err
+	now := time.Now()
+	startTime := time.Date(now.Year(), now.Month(), now.Day(), hour, 0, 0, 0, now.Location())
+	//	现在距离开始的时间间隔
+	duration := startTime.Sub(now)
+	if now.After(startTime) {
+		//	今天的开始时间已经过了
+		duration = duration + time.Hour*24
 	}
+
+	log.Printf("%s后开始抓取%s的数据", duration.String(), market)
+
+	time.AfterFunc(duration, func() {
+		//	到点后立即运行第一次
+		go func(m string) {
+			//	抓取雅虎今日数据
+			err := yahooToday(market)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}(market)
+
+		//	之后每天运行一次
+		ticker := time.NewTicker(time.Hour * 24)
+		for _ = range ticker.C {
+			//	抓取雅虎今日数据
+			err := yahooToday(market)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	})
 
 	return nil
 }
