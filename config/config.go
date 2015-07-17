@@ -2,15 +2,13 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/Unknwon/goconfig"
 )
 
 const (
-	configFileName     = "config.ini"
-	configSection      = "path"
-	configKey          = "datadir"
-	configDefaultValue = "data"
+	dataDirName = "srdata"
 )
 
 type Config struct {
@@ -18,17 +16,8 @@ type Config struct {
 	configFile *goconfig.ConfigFile
 }
 
-var configInstance = New()
-
-//	默认
-func New() *goconfig.ConfigFile {
-	configFile, err := goconfig.LoadConfigFile(configFileName)
-	if err != nil {
-		return nil
-	}
-
-	return configFile
-}
+var configInstance *goconfig.ConfigFile
+var dataDir string
 
 //	设置配置文件
 func SetConfigFile(filePath string) error {
@@ -39,6 +28,16 @@ func SetConfigFile(filePath string) error {
 	}
 
 	configInstance = configFile
+
+	rootDir := filepath.Dir(filePath)
+	dataDir = filepath.Join(rootDir, dataDirName)
+	_, err = os.Stat(dataDir)
+	if os.IsNotExist(err) {
+		err = os.Mkdir(dataDir, 0x644)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -54,19 +53,7 @@ func GetArray(section, key string) []string {
 }
 
 //	获取数据保存目录
-func GetDataDir() (string, error) {
+func GetDataDir() string {
 
-	//	数据保存目录
-	dataDir := GetString(configSection, configKey, configDefaultValue)
-
-	//	检查目录是否存在
-	_, err := os.Stat(dataDir)
-	if os.IsNotExist(err) {
-		err = os.Mkdir(dataDir, 0x777)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	return dataDir, nil
+	return dataDir
 }
