@@ -93,7 +93,7 @@ func yahooQueryUrl(code string, endHour int) string {
 //	当前日期：获取当天0点的时间，跨天的返回前一天
 func getCurrentDate(endHour int) time.Time {
 
-	now := time.Now()
+	now := time.Now().UTC()
 	today := now.Add(-time.Hour * time.Duration(endHour))
 	return today.Truncate(time.Hour * 24)
 }

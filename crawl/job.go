@@ -41,7 +41,7 @@ func marketJob(market string) error {
 		return err
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	startTime := time.Date(now.Year(), now.Month(), now.Day(), hour%24, 0, 0, 0, now.Location())
 	//	现在距离开始的时间间隔
 	duration := startTime.Sub(now)
