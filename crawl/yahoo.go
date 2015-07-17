@@ -71,10 +71,7 @@ func yahooTodayStock(code string, endHour int) error {
 	}
 
 	//	保存原始数据
-	dataDir, err := config.GetDataDir()
-	if err != nil {
-		return err
-	}
+	dataDir := config.GetDataDir()
 
 	fileName := fmt.Sprintf("%s_raw.txt", getCurrentDate(endHour).Format("20060102"))
 	filePath := filepath.Join(dataDir, code, fileName)
