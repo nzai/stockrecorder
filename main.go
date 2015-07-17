@@ -10,16 +10,14 @@ import (
 )
 
 const (
-	configFileName           = "config.ini"
-	configLogSection         = "path"
-	configLogKey             = "logpath"
-	configLogDefaultFileName = "main.log"
+	configFileName = "config.ini"
+	logFileName    = "main.log"
 )
 
 func main() {
 	//	当前目录
-	root := filepath.Dir(os.Args[0])
-	filename := filepath.Join(root, configFileName)
+	rootDir := filepath.Dir(os.Args[0])
+	filename := filepath.Join(rootDir, configFileName)
 
 	//	读取配置文件
 	err := config.SetConfigFile(filename)
@@ -29,7 +27,7 @@ func main() {
 	}
 
 	//	打开日志文件
-	file, err := openLogFile()
+	file, err := openLogFile(rootDir)
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -52,17 +50,11 @@ func main() {
 }
 
 //	打开日志文件
-func openLogFile() (*os.File, error) {
+func openLogFile(rootDir string) (*os.File, error) {
 	//	日志文件路径
-	logPath := config.GetString(configLogSection, configLogKey, configLogDefaultFileName)
-	logDir := filepath.Dir(logPath)
-	_, err := os.Stat(logDir)
-	if os.IsNotExist(err) {
-		err = os.Mkdir(logDir, 0x644)
-		if err != nil {
-			return nil, err
-		}
-	}
+	dataDir := config.GetDataDir()
+
+	logPath := filepath.Join(dataDir, logFileName)
 
 	return os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0x644)
 }
