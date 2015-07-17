@@ -31,12 +31,12 @@ func Start() {
 //	抓取市场数据任务
 func marketJob(market string) error {
 	//	任务启动时间(hour)
-	starthour := config.GetString(market, "starthour", "")
-	if starthour == "" {
+	endhour := config.GetString(market, "endhour", "")
+	if endhour == "" {
 		return errors.New(fmt.Sprintf("市场[%s]的starthour配置有误", market))
 	}
 
-	hour, err := strconv.Atoi(starthour)
+	hour, err := strconv.Atoi(endhour)
 	if err != nil {
 		return err
 	}
@@ -54,19 +54,19 @@ func marketJob(market string) error {
 
 	time.AfterFunc(duration, func() {
 		//	到点后立即运行第一次
-		go func(m string) {
+		go func(m string, h int) {
 			//	抓取雅虎今日数据
-			err := yahooToday(market)
+			err := yahooToday(market, h)
 			if err != nil {
 				log.Fatal(err)
 			}
-		}(market)
+		}(market, hour)
 
 		//	之后每天运行一次
 		ticker := time.NewTicker(time.Hour * 24)
 		for _ = range ticker.C {
 			//	抓取雅虎今日数据
-			err := yahooToday(market)
+			err := yahooToday(market, hour)
 			if err != nil {
 				log.Fatal(err)
 			}
