@@ -3,7 +3,6 @@ package task
 import (
 	"log"
 
-	"github.com/nzai/stockrecorder/analyse"
 	"github.com/nzai/stockrecorder/crawl"
 )
 
@@ -15,7 +14,7 @@ func StartTasks() error {
 	go crawl.Start()
 
 	//	启动分析任务
-	go analyse.StartJobs()
+	//	go analyse.StartJobs()
 
 	return nil
 }
