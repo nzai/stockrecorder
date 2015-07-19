@@ -56,5 +56,5 @@ func openLogFile(rootDir string) (*os.File, error) {
 
 	logPath := filepath.Join(dataDir, logFileName)
 
-	return os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0x644)
+	return os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0660)
 }
