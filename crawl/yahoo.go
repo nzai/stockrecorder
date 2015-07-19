@@ -71,7 +71,7 @@ func stockAll(market, code string) error {
 		location = loc
 	}
 	now := time.Now().In(location)
-	today := now.Truncate(time.Hour * 24)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
 
 	//	定时器今天
 	go func() {
@@ -79,7 +79,7 @@ func stockAll(market, code string) error {
 		log.Printf("已启动%s的定时抓取任务", code)
 		for _ = range ticker.C {
 			now = time.Now().In(location)
-			today = now.Truncate(time.Hour * 24)
+			today = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
 
 			err := stockToday(code, today)
 			if err != nil {
@@ -105,7 +105,7 @@ func stockToday(code string, today time.Time) error {
 			time.Sleep(retryDelay)
 		}
 
-		log.Printf("%s在%s分时数据抓取任务-结束", code, today.Format("20060102"))
+		log.Printf("%s在%s分时数据抓取任务-结束", code, day.Format("20060102"))
 		return nil
 	}
 
@@ -127,7 +127,7 @@ func stockHistory(code string, today time.Time) error {
 				day = day.Add(-time.Hour * 24)
 				break
 			} else {
-				log.Fatalf("[%d]抓取%s在%s的数据出错:%v", try, code, today.Format("20060102"), err)
+				log.Fatalf("[%d]抓取%s在%s的数据出错:%v", try, code, day.Format("20060102"), err)
 				time.Sleep(retryDelay)
 			}
 		}
@@ -148,7 +148,7 @@ func thatDay(code string, day time.Time) error {
 	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
 		//	如果不存在就抓取并保存
-		start := day.Truncate(time.Hour * 24)
+		start := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, day.Location())
 		end := start.Add(time.Hour * 24)
 		html, err := peroid(code, start, end)
 		if err != nil {
