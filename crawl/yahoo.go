@@ -74,19 +74,34 @@ func stockAll(market, code string) error {
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
 
 	//	定时器今天
-	go func() {
+	du := today.Add(time.Hour * 24).Sub(now)
+	log.Printf("[%s]\t%s后启动首次定时任务", code, du.String())
+	time.AfterFunc(du, func() {
 		ticker := time.NewTicker(time.Hour * 24)
-		log.Printf("已启动%s的定时抓取任务", code)
+		log.Printf("[%s]\t已启动定时抓取任务", code)
+
+		//	立刻运行一次
+		go func() {
+			now = time.Now().In(location)
+			today = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
+
+			err := stockToday(code, today)
+			if err != nil {
+				log.Fatalf("[%s]\t抓取%s的数据出错:%v", code, today.Format("20060102"), err)
+			}
+		}()
+
+		//	每天运行一次
 		for _ = range ticker.C {
 			now = time.Now().In(location)
 			today = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
 
 			err := stockToday(code, today)
 			if err != nil {
-				log.Fatalf("抓取%s在%s的数据出错:%v", code, today.Format("20060102"), err)
+				log.Fatalf("[%s]\t抓取%s的数据出错:%v", code, today.Format("20060102"), err)
 			}
 		}
-	}()
+	})
 
 	//	历史
 	return stockHistory(code, today)
@@ -94,27 +109,27 @@ func stockAll(market, code string) error {
 
 //	抓取今天
 func stockToday(code string, today time.Time) error {
-	log.Printf("%s在%s分时数据抓取任务-开始", code, today.Format("20060102"))
+	log.Printf("[%s]\t%s分时数据抓取任务-开始", code, today.Format("20060102"))
 	//	保存原始数据
 	day := today.Add(-time.Hour * 24)
 	for try := 0; try < retryCount; try++ {
 		//	抓取数据
 		err := thatDay(code, day)
 		if err != nil {
-			log.Fatalf("[%d]抓取%s在%s的数据出错:%v", try, code, today.Format("20060102"), err)
+			log.Fatalf("[%s]\t抓取%s的数据出错(还有%d次):%v", try, code, today.Format("20060102"), err)
 			time.Sleep(retryDelay)
 		}
 
-		log.Printf("%s在%s分时数据抓取任务-结束", code, day.Format("20060102"))
+		log.Printf("[%s]\t%s分时数据抓取任务-结束", code, day.Format("20060102"))
 		return nil
 	}
 
-	return errors.New(fmt.Sprintf("%s在%s分时数据抓取任务失败", code, today.Format("20060102")))
+	return errors.New(fmt.Sprintf("[%s]\t%s分时数据抓取任务失败", code, today.Format("20060102")))
 }
 
 //	抓取历史
 func stockHistory(code string, today time.Time) error {
-	log.Printf("%s历史分时数据抓取任务-开始", code)
+	log.Printf("[%s]\t历史分时数据抓取任务-开始", code)
 	//	保存原始数据
 	day := today.Add(-time.Hour * 24)
 	for index := 0; index < lastestDays; index++ {
@@ -127,12 +142,12 @@ func stockHistory(code string, today time.Time) error {
 				day = day.Add(-time.Hour * 24)
 				break
 			} else {
-				log.Fatalf("[%d]抓取%s在%s的数据出错:%v", try, code, day.Format("20060102"), err)
+				log.Fatalf("[%s]\t抓取%s的数据出错(还有%d次):%v", code, day.Format("20060102"), retryCount-try-1, err)
 				time.Sleep(retryDelay)
 			}
 		}
 	}
-	log.Printf("%s历史分时数据抓取任务-结束", code)
+	log.Printf("[%s]\t历史分时数据抓取任务-结束", code)
 	return nil
 }
 
