@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	dataDirName = "srdata"
+	dataDirName = "data"
 )
 
 type Config struct {
