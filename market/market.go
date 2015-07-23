@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nzai/Tast/config"
+	"github.com/nzai/stockrecorder/config"
 	"github.com/nzai/stockrecorder/io"
 )
 
@@ -75,8 +75,7 @@ func newMarket(updater MarketUpdater) (*Market, error) {
 
 //	上市公司保存路径
 func (m Market) companiesSavePath() string {
-	dir, _ := config.GetDataDir()
-	return filepath.Join(dir, m.Name, companiesFileName)
+	return filepath.Join(config.GetDataDir(), m.Name, companiesFileName)
 }
 
 //	保存上市公司到文件
