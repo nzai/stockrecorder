@@ -1,6 +1,7 @@
 package io
 
 import (
+	"bufio"
 	"os"
 	"path/filepath"
 )
@@ -9,7 +10,7 @@ import (
 func WriteLines(filePath string, lines []string) error {
 
 	//	打开文件
-	file, err := openFile(filePath)
+	file, err := openForWrite(filePath)
 	if err != nil {
 		return err
 	}
@@ -31,7 +32,7 @@ func WriteLines(filePath string, lines []string) error {
 func WriteString(filePath, content string) error {
 
 	//	打开文件
-	file, err := openFile(filePath)
+	file, err := openForWrite(filePath)
 	if err != nil {
 		return err
 	}
@@ -43,7 +44,7 @@ func WriteString(filePath, content string) error {
 }
 
 //	打开文件
-func openFile(filePath string) (*os.File, error) {
+func openForWrite(filePath string) (*os.File, error) {
 	//	检查文件所处目录是否存在
 	fileDir := filepath.Dir(filePath)
 	_, err := os.Stat(fileDir)
@@ -57,4 +58,29 @@ func openFile(filePath string) (*os.File, error) {
 
 	//	打开文件
 	return os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0660)
+}
+
+//	读取文件
+func ReadLines(filePath string) ([]string, error) {
+	//	检查文件
+	_, err := os.Stat(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	//	打开文件
+	file, err := os.OpenFile(filePath, os.O_RDONLY, 0660)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	//	读取
+	scanner := bufio.NewScanner(file)
+	lines := make([]string, 0)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	return lines, scanner.Err()
 }
