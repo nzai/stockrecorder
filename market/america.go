@@ -11,12 +11,6 @@ import (
 	"github.com/nzai/stockrecorder/io"
 )
 
-const (
-	retryCount        = 3
-	retryDelay        = time.Second * 10
-	companiesFileName = "companies.txt"
-)
-
 //	美股市场
 type America struct{}
 
@@ -54,7 +48,7 @@ func (m America) UpdateCompanies() ([]Company, error) {
 				}
 			}
 
-			time.Sleep(retryDelay)
+			time.Sleep(retryDelaySeconds * time.Second)
 		}
 	}
 
