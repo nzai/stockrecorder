@@ -12,10 +12,9 @@ func StartTasks() error {
 	log.Print("启动任务")
 
 	go func() {
-		err := market.Start()
-		if err != nil {
-			log.Fatal(err)
-		}
+		market.Add(market.America{})
+		
+		market.Monitor()
 	}()
 
 	//	启动抓取任务

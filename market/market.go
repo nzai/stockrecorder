@@ -1,15 +1,8 @@
 package market
 
 import (
-	"errors"
-	"fmt"
 	"log"
-	"path/filepath"
-	"strings"
 	"time"
-
-	"github.com/nzai/stockrecorder/config"
-	"github.com/nzai/stockrecorder/io"
 )
 
 const (
@@ -18,7 +11,6 @@ const (
 	companyGCCount    = 32
 	retryCount        = 5
 	retryDelaySeconds = 600
-	companiesFileName = "companies.txt"
 )
 
 //	市场更新
@@ -102,6 +94,7 @@ func marketToday(market Market) time.Time {
 //	抓取市场上市公司信息
 func crawlMarketCompanies(market Market) ([]Company, error) {
 
+	cl := CompanyList{}
 	//	尝试更新上市公司列表
 	log.Printf("[%s]\t更新上市公司列表-开始", market.Name())
 	companies, err := market.LastestCompanies()
@@ -109,60 +102,25 @@ func crawlMarketCompanies(market Market) ([]Company, error) {
 
 		//	如果更新失败，则尝试从上次的存档文件中读取上市公司列表
 		log.Printf("[%s]\t更新上市公司列表失败，尝试从存档读取", market.Name())
-		companies, err = loadMarketCompanies(market)
+		err = cl.Load(market)
 		if err != nil {
 			log.Printf("[%s]\t尝试从存档读取上市公司列表-失败", market.Name())
 			return nil, err
 		}
 
+		companies = cl
 		log.Printf("[%s]\t尝试从存档读取上市公司列表-成功,共%d家上市公司", market.Name(), len(companies))
 
 		return companies, nil
 	}
 
 	//	存档
-	err = saveMarketCompanies(market, companies)
+	err = cl.Save(market)
 	if err != nil {
 		return nil, err
 	}
 
 	log.Printf("[%s]\t更新上市公司列表-成功,共%d家上市公司", market.Name(), len(companies))
-
-	return companies, nil
-}
-
-//	上市公司列表保存路径
-func marketCompaniesPath(market Market) string {
-	return filepath.Join(config.GetDataDir(), market.Name(), companiesFileName)
-}
-
-//	保存上市公司列表到文件
-func saveMarketCompanies(market Market, companies []Company) error {
-
-	lines := make([]string, 0)
-	for _, company := range companies {
-		lines = append(lines, fmt.Sprintf("%s\t%s\n", company.Code, company.Name))
-	}
-
-	return io.WriteLines(marketCompaniesPath(market), lines)
-}
-
-//	从存档读取上市公司列表
-func loadMarketCompanies(market Market) ([]Company, error) {
-	lines, err := io.ReadLines(marketCompaniesPath(market))
-	if err != nil {
-		return nil, err
-	}
-
-	companies := make([]Company, 0)
-	for _, line := range lines {
-		parts := strings.Split(line, "\t")
-		if len(parts) != 2 {
-			return nil, errors.New("错误的上市公司列表格式")
-		}
-
-		companies = append(companies, Company{Code: parts[0], Name: parts[1]})
-	}
 
 	return companies, nil
 }
@@ -265,7 +223,7 @@ func marketHistory(market Market) error {
 
 //	公司历史
 func marketCompanyHistory(market Market, company Company, day time.Time) {
-	//	保存原始数据
+	//	查询之前一段时间的数据
 	for index := 0; index < lastestDays; index++ {
 		day = day.Add(-time.Hour * 24)
 		crawlCompany(market, company, day)
