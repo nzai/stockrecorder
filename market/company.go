@@ -42,7 +42,8 @@ func storePath(market Market) string {
 //	保存上市公司列表到文件
 func (l CompanyList) Save(market Market) error {
 	lines := make([]string, 0)
-	for _, company := range l {
+	companies := ([]Company)(l)
+	for _, company := range companies {
 		lines = append(lines, fmt.Sprintf("%s\t%s\n", company.Code, company.Name))
 	}
 
