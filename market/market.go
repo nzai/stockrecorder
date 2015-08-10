@@ -6,10 +6,10 @@ import (
 )
 
 const (
-	//	雅虎财经的历史分时数据没有超过60天的
-	lastestDays       = 60
-	companyGCCount    = 32
-	retryCount        = 5
+	//	雅虎财经的历史分时数据没有超过90天的
+	lastestDays       = 90
+	companyGCCount    = 64
+	retryCount        = 10
 	retryDelaySeconds = 600
 )
 
@@ -23,7 +23,7 @@ type Market interface {
 	LastestCompanies() ([]Company, error)
 
 	//	抓取任务(每日)
-	Crawl(company Company, day time.Time) error
+	Crawl(market Market, company Company, day time.Time) error
 }
 
 var markets = []Market{}
@@ -48,7 +48,7 @@ func Monitor() {
 func monitorMarket(market Market) {
 
 	//	获取市场所在时区的今天0点
-	today := marketToday(market)
+	today := today(market)
 	now := time.Now().In(today.Location())
 
 	//	定时器今天
@@ -60,7 +60,7 @@ func monitorMarket(market Market) {
 
 		//	立刻运行一次
 		go func() {
-			err := crawlMarket(market)
+			err := crawlYesterday(market)
 			if err != nil {
 				log.Fatalf("[%s]\t抓取%s的数据出错:%v", market.Name(), today.Format("20060102"), err)
 			}
@@ -68,7 +68,7 @@ func monitorMarket(market Market) {
 
 		//	每天运行一次
 		for _ = range ticker.C {
-			err := crawlMarket(market)
+			err := crawlYesterday(market)
 			if err != nil {
 				log.Fatalf("[%s]\t抓取%s的数据出错:%v", market.Name(), today.Format("20060102"), err)
 			}
@@ -79,7 +79,7 @@ func monitorMarket(market Market) {
 }
 
 //	市场所处时区今日0点
-func marketToday(market Market) time.Time {
+func today(market Market) time.Time {
 	//	获取市场所在时区的今天0点
 	location, err := time.LoadLocation(market.Timezone())
 	if err != nil {
@@ -92,7 +92,7 @@ func marketToday(market Market) time.Time {
 }
 
 //	抓取市场上市公司信息
-func crawlMarketCompanies(market Market) ([]Company, error) {
+func companies(market Market) ([]Company, error) {
 
 	cl := CompanyList{}
 	//	尝试更新上市公司列表
@@ -115,6 +115,7 @@ func crawlMarketCompanies(market Market) ([]Company, error) {
 	}
 
 	//	存档
+	cl = CompanyList(companies)
 	err = cl.Save(market)
 	if err != nil {
 		return nil, err
@@ -126,16 +127,16 @@ func crawlMarketCompanies(market Market) ([]Company, error) {
 }
 
 //	抓取市场前一天的数据
-func crawlMarket(market Market) error {
+func crawlYesterday(market Market) error {
 
 	//	获取市场内的所有上市公司
-	companies, err := crawlMarketCompanies(market)
+	companies, err := companies(market)
 	if err != nil {
 		return err
 	}
 
 	//	前一天
-	yesterday := marketToday(market).Add(-time.Hour * 24)
+	yesterday := today(market).Add(-time.Hour * 24)
 
 	chanSend := make(chan int, companyGCCount)
 	chanReceive := make(chan int)
@@ -169,7 +170,7 @@ func crawlCompany(market Market, company Company, day time.Time) {
 
 	for try := retryCount; try > 0; try-- {
 		//	抓取数据
-		err := market.Crawl(company, day)
+		err := market.Crawl(market, company, day)
 		if err == nil {
 			break
 		}
@@ -186,13 +187,15 @@ func crawlCompany(market Market, company Company, day time.Time) {
 //	市场历史
 func marketHistory(market Market) error {
 	//	获取市场内的所有上市公司
-	companies, err := crawlMarketCompanies(market)
+	companies, err := companies(market)
 	if err != nil {
 		return err
 	}
 
+	log.Printf("[%s]\t开始抓取%d家上市公司的历史", market.Name(), len(companies))
+
 	//	前一天
-	yesterday := marketToday(market).Add(-time.Hour * 24)
+	yesterday := today(market)
 
 	chanSend := make(chan int, companyGCCount)
 	chanReceive := make(chan int)
