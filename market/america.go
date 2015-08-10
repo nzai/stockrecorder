@@ -4,10 +4,13 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/nzai/stockrecorder/config"
 	"github.com/nzai/stockrecorder/io"
 )
 
@@ -77,23 +80,18 @@ func (m America) parseCSV(content string) ([]Company, error) {
 			return nil, errors.New(fmt.Sprintf("错误的美股上市公司CSV格式:%v", parts))
 		}
 
-		companies = append(companies, Company{Code: parts[0], Name: parts[1]})
+		companies = append(companies, Company{Code: strings.Trim(parts[0], " "), Name: strings.Trim(parts[1], " ")})
 	}
 
 	return companies, nil
 }
 
-func (m America) Crawl(company Company, day time.Time) error {
-	return nil
-}
-
-//	抓取某一天
-func thatDay(code string, day time.Time) error {
-
+//	抓取
+func (m America) Crawl(market Market, company Company, day time.Time) error {
 	//	文件保存路径
 	dataDir := config.GetDataDir()
 	fileName := fmt.Sprintf("%s_raw.txt", day.Format("20060102"))
-	filePath := filepath.Join(dataDir, code, fileName)
+	filePath := filepath.Join(dataDir, market.Name(), company.Code, fileName)
 
 	//	如果文件已存在就忽略
 	_, err := os.Stat(filePath)
@@ -101,7 +99,11 @@ func thatDay(code string, day time.Time) error {
 		//	如果不存在就抓取并保存
 		start := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, day.Location())
 		end := start.Add(time.Hour * 24)
-		html, err := peroid(code, start, end)
+
+		pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%7Csplit%7Cearn&corsDomain=finance.yahoo.com"
+		url := fmt.Sprintf(pattern, company.Code, end.Unix(), start.Unix())
+
+		html, err := io.GetString(url)
 		if err != nil {
 			return err
 		}
@@ -111,14 +113,4 @@ func thatDay(code string, day time.Time) error {
 	}
 
 	return nil
-}
-
-//	抓取一段时间
-func peroid(code string, start, end time.Time) (string, error) {
-
-	pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%7Csplit%7Cearn&corsDomain=finance.yahoo.com"
-	url := fmt.Sprintf(pattern, code, end.Unix(), start.Unix())
-
-	//	抓取数据
-	return io.GetString(url)
 }
