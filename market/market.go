@@ -8,7 +8,7 @@ import (
 const (
 	//	雅虎财经的历史分时数据没有超过90天的
 	lastestDays       = 90
-	companyGCCount    = 64
+	companyGCCount    = 32
 	retryCount        = 10
 	retryDelaySeconds = 600
 )
