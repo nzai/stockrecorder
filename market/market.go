@@ -40,7 +40,7 @@ func Monitor() {
 	log.Print("启动监视")
 
 	for _, market := range markets {
-		monitorMarket(market)
+		go monitorMarket(market)
 	}
 }
 
