@@ -10,17 +10,15 @@ import (
 )
 
 const (
-	configFileName = "config.ini"
 	logFileName    = "main.log"
 )
 
 func main() {
 	//	当前目录
 	rootDir := filepath.Dir(os.Args[0])
-	filename := filepath.Join(rootDir, configFileName)
 
 	//	读取配置文件
-	err := config.SetConfigFile(filename)
+	err := config.SetRootDir(rootDir)
 	if err != nil {
 		log.Fatal(err)
 		return
