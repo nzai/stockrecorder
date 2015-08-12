@@ -3,7 +3,6 @@ package task
 import (
 	"log"
 
-	"github.com/nzai/stockrecorder/crawl"
 	"github.com/nzai/stockrecorder/market"
 )
 
@@ -12,13 +11,13 @@ func StartTasks() error {
 	log.Print("启动任务")
 
 	go func() {
+		//	美国股市
 		market.Add(market.America{})
+		//	中国股市
+		market.Add(market.Chinese{})
 		
 		market.Monitor()
 	}()
-
-	//	启动抓取任务
-	go crawl.Start()
 
 	//	启动分析任务
 	//	go analyse.StartJobs()
