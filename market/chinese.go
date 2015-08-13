@@ -1,6 +1,7 @@
 package market
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -77,7 +78,7 @@ func (m Chinese) shanghaiCompanies() ([]Company, error) {
 	for _, url := range urls {
 
 		//	尝试从网络获取实时上市公司列表
-		for try := 0; try < retryCount; try++ {
+		for try := retryCount; try > 0; try-- {
 			json, err := io.GetStringReferer(url, referer)
 			if err == nil {
 				companies, err := m.parseShanghaiJson(json)
@@ -87,9 +88,12 @@ func (m Chinese) shanghaiCompanies() ([]Company, error) {
 				}
 			}
 
-			log.Fatal(err)
+			if try == 0 {
+				break
+			}
 
-			time.Sleep(retryDelaySeconds * time.Second)
+			log.Fatalf("获取上海证券交易所上市公司出错[%d](%d秒钟后重试):%v", try-1, retryDelaySeconds, err)
+			time.Sleep(time.Duration(retryDelaySeconds) * time.Second)
 		}
 	}
 
@@ -106,11 +110,15 @@ func (m Chinese) parseShanghaiJson(json string) ([]Company, error) {
 	//  使用正则分析json
 	regex := regexp.MustCompile(`"PRODUCTNAME":"([^"]*?)","PRODUCTID":"(\d{6})"`)
 	group := regex.FindAllStringSubmatch(json, -1)
-	log.Print(json)
+
 	companies := make([]Company, 0)
 	for _, section := range group {
 		//log.Printf("%s\t%s\n", section[2], section[1])
 		companies = append(companies, Company{Code: section[2], Name: section[1]})
+	}
+
+	if len(companies) == 0 {
+		return nil, errors.New(fmt.Sprintf("错误的上海证券交易所上市公司列表内容:%s", json))
 	}
 
 	return companies, nil
@@ -127,7 +135,7 @@ func (m Chinese) shenzhenCompanies() ([]Company, error) {
 	for _, url := range urls {
 
 		//	尝试从网络获取实时上市公司列表
-		for try := 0; try < retryCount; try++ {
+		for try := retryCount; try > 0; try-- {
 			html, err := io.GetString(url)
 			if err == nil {
 				//	深圳证券交易所的查询结果是GBK编码的，需要转成UTF8
@@ -139,8 +147,12 @@ func (m Chinese) shenzhenCompanies() ([]Company, error) {
 				}
 			}
 
-			log.Fatal(err)
-			time.Sleep(retryDelaySeconds * time.Second)
+			if try == 0 {
+				break
+			}
+
+			log.Fatalf("获取深圳证券交易所上市公司出错[%d](%d秒钟后重试):%v", try-1, retryDelaySeconds, err)
+			time.Sleep(time.Duration(retryDelaySeconds) * time.Second)
 		}
 	}
 
@@ -154,12 +166,16 @@ func (m Chinese) shenzhenCompanies() ([]Company, error) {
 //	解析深圳证券交易所上市公司
 func (m Chinese) parseShenzhenHtml(html string) ([]Company, error) {
 	//  使用正则分析html
-	regex := regexp.MustCompile(`<td  class='cls-data-td' style='mso-number-format:\\@' align='center' >(\d{6})</td><td  class='cls-data-td'  align='center' >([^<]*?)</td>`)
+	regex := regexp.MustCompile(`align='center' >(\d{6})</td><td  class='cls-data-td'  align='center' >([^<]*?)</td>`)
 	group := regex.FindAllStringSubmatch(html, -1)
 
 	companies := make([]Company, 0)
 	for _, section := range group {
 		companies = append(companies, Company{Code: section[1], Name: section[2]})
+	}
+
+	if len(companies) == 0 {
+		return nil, errors.New(fmt.Sprintf("错误的深圳证券交易所上市公司列表内容:%s", html))
 	}
 
 	return companies, nil
