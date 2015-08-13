@@ -9,8 +9,8 @@ const (
 	//	雅虎财经的历史分时数据没有超过90天的
 	lastestDays       = 90
 	companyGCCount    = 32
-	retryCount        = 10
-	retryDelaySeconds = 600
+	retryCount        = 100
+	retryDelaySeconds = 30
 )
 
 //	市场更新
@@ -176,8 +176,8 @@ func crawlCompany(market Market, company Company, day time.Time) {
 		}
 
 		if try > 0 {
-			log.Fatalf("[%s]\t抓取%s的数据出错(还有%d次):%v", market.Name(), company.Name, try-1, err)
-			time.Sleep(retryDelaySeconds * time.Second)
+			log.Fatalf("[%s]\t抓取%s的数据出错[%d](%d秒后重试):%v", market.Name(), company.Name, try-1, retryDelaySeconds, err)
+			time.Sleep(time.Duration(retryDelaySeconds) * time.Second)
 		} else {
 			log.Printf("[%s]\t抓取%s在%s的数据失败,已重试%d次", market.Name(), company.Name, day.Format("20060102"), retryCount)
 		}
