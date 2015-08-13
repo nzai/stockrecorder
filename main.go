@@ -10,10 +10,19 @@ import (
 )
 
 const (
-	logFileName    = "main.log"
+	logFileName = "main.log"
 )
 
 func main() {
+
+	defer func() {
+		// 捕获panic异常
+		log.Print("发生了致命错误")
+		if err := recover(); err != nil {
+			log.Print(err)
+		}
+	}()
+
 	//	当前目录
 	rootDir := filepath.Dir(os.Args[0])
 
