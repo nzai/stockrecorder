@@ -93,7 +93,9 @@ func (m Chinese) shanghaiCompanies() ([]Company, error) {
 			}
 
 			log.Fatalf("获取上海证券交易所上市公司出错[%d](%d秒钟后重试):%v", try-1, retryDelaySeconds, err)
-			time.Sleep(time.Duration(retryDelaySeconds) * time.Second)
+			t := time.NewTimer(time.Second * retryDelaySeconds)
+			<-t.C
+			log.Fatal("获取上海证券交易所上市公司")
 		}
 	}
 
@@ -152,7 +154,9 @@ func (m Chinese) shenzhenCompanies() ([]Company, error) {
 			}
 
 			log.Fatalf("获取深圳证券交易所上市公司出错[%d](%d秒钟后重试):%v", try-1, retryDelaySeconds, err)
-			time.Sleep(time.Duration(retryDelaySeconds) * time.Second)
+			t := time.NewTimer(time.Second * retryDelaySeconds)
+			<-t.C
+			log.Fatal("获取深圳证券交易所上市公司")
 		}
 	}
 
