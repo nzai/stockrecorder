@@ -79,12 +79,12 @@ func monitorMarket(market Market) {
 		log.Printf("[%s]\t已启动定时抓取任务", market.Name())
 
 		//	立刻运行一次
-//		go func() {
-//			err := crawlYesterday(market)
-//			if err != nil {
-//				log.Fatalf("[%s]\t抓取%s的数据出错:%v", market.Name(), today.Format("20060102"), err)
-//			}
-//		}()
+		go func() {
+			err := crawlYesterday(market)
+			if err != nil {
+				log.Fatalf("[%s]\t抓取%s的数据出错:%v", market.Name(), today.Format("20060102"), err)
+			}
+		}()
 
 		//	每天运行一次
 		for _ = range ticker.C {
@@ -111,6 +111,15 @@ func locationNow(market Market) time.Time {
 	return now.In(location)
 }
 
+//	每日定时任务
+func dailyTask(market Market) {
+	
+}
+
+//	历史数据获取任务
+func historyTask(market Market, yesterday time.Time) {
+	
+}
 
 //	抓取市场上市公司信息
 func companies(market Market) ([]Company, error) {
