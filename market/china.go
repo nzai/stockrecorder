@@ -23,7 +23,7 @@ func (m China) Timezone() string {
 }
 
 //	更新上市公司列表
-func (m China) LastestCompanies() ([]Company, error) {
+func (m China) Companies() ([]Company, error) {
 
 	companies := make([]Company, 0)
 

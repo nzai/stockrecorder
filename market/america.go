@@ -25,7 +25,7 @@ func (m America) Timezone() string {
 }
 
 //	更新上市公司列表
-func (m America) LastestCompanies() ([]Company, error) {
+func (m America) Companies() ([]Company, error) {
 
 	urls := [...]string{
 		"http://www.nasdaq.com/screening/companies-by-industry.aspx?exchange=NASDAQ&render=download",

@@ -3,7 +3,6 @@ package market
 import (
 	"errors"
 	"fmt"
-	"log"
 	"path/filepath"
 	"strings"
 
@@ -69,41 +68,6 @@ func (l *CompanyList) Load(market Market) error {
 
 	cl := CompanyList(companies)
 	l = &cl
-
-	return nil
-}
-
-//	抓取市场上市公司信息
-func (l *CompanyList) Refresh(market Market) error {
-
-	//	尝试更新上市公司列表
-	log.Printf("[%s]\t更新上市公司列表-开始", market.Name())
-	companies, err := market.LastestCompanies()
-	if err != nil {
-
-		//	如果更新失败，则尝试从上次的存档文件中读取上市公司列表
-		log.Printf("[%s]\t更新上市公司列表失败，尝试从存档读取", market.Name())
-		err = l.Load(market)
-		if err != nil {
-			log.Printf("[%s]\t尝试从存档读取上市公司列表-失败", market.Name())
-			return err
-		}
-
-		log.Printf("[%s]\t尝试从存档读取上市公司列表-成功,共%d家上市公司", market.Name(), len(companies))
-
-		return nil
-	}
-
-	cl := CompanyList(companies)
-	l = &cl
-
-	//	存档
-	err = l.Save(market)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("[%s]\t更新上市公司列表-成功,共%d家上市公司", market.Name(), len(companies))
 
 	return nil
 }
