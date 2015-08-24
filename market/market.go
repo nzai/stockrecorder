@@ -100,7 +100,7 @@ func dailyTask(market Market) {
 	//	获取市场所有上市公司
 	companies, err := getCompanies(market)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 
 	chanSend := make(chan int, companyGCCount)
@@ -112,7 +112,7 @@ func dailyTask(market Market) {
 
 			err := market.Crawl(market, company, yesterday)
 			if err != nil {
-				log.Fatal(err)
+				log.Print(err)
 			}
 
 			<-chanSend
@@ -137,7 +137,8 @@ func historyTask(market Market, yesterday time.Time) {
 	//	获取市场所有上市公司
 	companies, err := getCompanies(market)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return
 	}
 
 	log.Printf("[%s]\t开始抓取%d家上市公司在%s之前的历史", market.Name(), len(companies), yesterday.Format("20060102"))
@@ -153,7 +154,7 @@ func historyTask(market Market, yesterday time.Time) {
 				day := yesterday.Add(-time.Hour * 24 * time.Duration(index))
 				err := market.Crawl(market, company, day)
 				if err != nil {
-					log.Fatalf("[%s]\t抓取[%s]在%s的分时数据出错:%s", market.Name(), company.Code, day.Format("20060102"), err)
+					log.Printf("[%s]\t抓取[%s]在%s的分时数据出错:%s", market.Name(), company.Code, day.Format("20060102"), err)
 				}
 			}
 

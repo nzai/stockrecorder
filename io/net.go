@@ -50,10 +50,9 @@ func DownloadStringRefererRetry(url, referer string, retryTimes, intervalSeconds
 		}
 
 		if times > 0 {
-			log.Fatalf("访问%s出错，还有%d次重试机会，%d秒后重试:%v", url, times, intervalSeconds, err)
+			log.Printf("访问%s出错，还有%d次重试机会，%d秒后重试:%v", url, times, intervalSeconds, err)
 			//	延时
 			time.Sleep(time.Duration(intervalSeconds) * time.Second)
-			log.Fatalf("访问%s出错，还有%d次重试机会，开始重试:%v", url, times)
 		}
 	}
 
