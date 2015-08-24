@@ -11,7 +11,7 @@ import (
 	"github.com/nzai/stockrecorder/io"
 )
 
-//	美股市场
+//	中国证券市场
 type China struct{}
 
 func (m China) Name() string {
