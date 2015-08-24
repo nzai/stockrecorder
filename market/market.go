@@ -1,6 +1,7 @@
 package market
 
 import (
+	"fmt"
 	"log"
 	"time"
 )
@@ -10,7 +11,7 @@ const (
 	lastestDays          = 90
 	companyGCCount       = 32
 	retryTimes           = 50
-	retryIntervalSeconds = 60
+	retryIntervalSeconds = 10
 )
 
 //	市场更新
@@ -20,7 +21,7 @@ type Market interface {
 	//	时区
 	Timezone() string
 	//	获取上市公司列表
-	LastestCompanies() ([]Company, error)
+	Companies() ([]Company, error)
 
 	//	抓取任务(每日)
 	Crawl(market Market, company Company, day time.Time) error
@@ -40,133 +41,66 @@ func Monitor() {
 	log.Print("启动监视")
 
 	for _, m := range markets {
-		go func(mkt Market) {
-			
-			//	市场所处时区当前时间
-			now := locationNow(mkt)
-			
-			//	启动每日定时任务
-			go func(market Market){
-				//	所处时区的明日0点
-				tomorrowZero := now.Truncate(time.Hour * 24).Add(time.Hour * 24)
-				du := tomorrowZero.Sub(now)
-				
-				log.Printf("[%s]\t定时任务已启动，将于%d时%d分%d秒后激活首次任务", market.Name(), du.Hours(), du.Minutes(), du.Seconds());
-				time.AfterFunc(du, func(){
-					
-				})
-				
 
-			}(mkt)
-			
-			monitorMarket(mkt)
-		}(m) 
+		//	启动每日定时任务
+		go func(market Market) {
+			//	所处时区的明日0点
+			now := locationNow(market)
+			tomorrowZero := now.Truncate(time.Hour * 24).Add(time.Hour * 24)
+			du := tomorrowZero.Sub(now)
+
+			log.Printf("[%s]\t定时任务已启动，将于%s后激活首次任务", market.Name(), du.String())
+			time.AfterFunc(du, func() {
+				//	立即运行一次
+				go dailyTask(market)
+
+				//	每天运行一次
+				ticker := time.NewTicker(time.Hour * 24)
+				for _ = range ticker.C {
+					dailyTask(market)
+				}
+			})
+
+		}(m)
+
+		//	启动历史数据获取任务
+		go func(market Market) {
+			historyTask(market, yesterdayZero(market))
+		}(m)
 	}
-}
-
-//	监视市场
-func monitorMarket(market Market) {
-
-	//	获取市场所在时区的今天0点
-	now := locationNow(market)
-	tomorrowZero := now.Truncate(time.Hour * 24).Add(time.Hour * 24)
-
-	//	到明天的时间间隔
-	du := tomorrowZero.Sub(now)
-	log.Printf("[%s]\t%s后启动首次定时任务", market.Name(), du.String())
-	time.AfterFunc(du, func() {
-		ticker := time.NewTicker(time.Hour * 24)
-		log.Printf("[%s]\t已启动定时抓取任务", market.Name())
-
-		//	立刻运行一次
-		go func() {
-			err := crawlYesterday(market)
-			if err != nil {
-				log.Fatalf("[%s]\t抓取%s的数据出错:%v", market.Name(), today.Format("20060102"), err)
-			}
-		}()
-
-		//	每天运行一次
-		for _ = range ticker.C {
-			err := crawlYesterday(market)
-			if err != nil {
-				log.Fatalf("[%s]\t抓取%s的数据出错:%v", market.Name(), now.Format("20060102"), err)
-			}
-		}
-	})
-
-	marketHistory(market)
 }
 
 //	所处时区当前时间
 func locationNow(market Market) time.Time {
 	now := time.Now()
-	
+
 	//	获取市场所在时区的今天0点
 	location, err := time.LoadLocation(market.Timezone())
 	if err != nil {
 		return now
 	}
-	
+
 	return now.In(location)
+}
+
+//	昨天0点
+func yesterdayZero(market Market) time.Time {
+	now := locationNow(market)
+	return now.Truncate(time.Hour * 24)
 }
 
 //	每日定时任务
 func dailyTask(market Market) {
-	
-}
 
-//	历史数据获取任务
-func historyTask(market Market, yesterday time.Time) {
-	
-}
+	//	昨天零点
+	yesterday := yesterdayZero(market)
+	log.Printf("[%s]\t%s数据获取任务已启动", market.Name(), yesterday.Format("20060102"))
 
-//	抓取市场上市公司信息
-func companies(market Market) ([]Company, error) {
-
-	cl := CompanyList{}
-	//	尝试更新上市公司列表
-	log.Printf("[%s]\t更新上市公司列表-开始", market.Name())
-	companies, err := market.LastestCompanies()
+	//	获取市场所有上市公司
+	companies, err := getCompanies(market)
 	if err != nil {
-
-		//	如果更新失败，则尝试从上次的存档文件中读取上市公司列表
-		log.Printf("[%s]\t更新上市公司列表失败，尝试从存档读取", market.Name())
-		err = cl.Load(market)
-		if err != nil {
-			log.Printf("[%s]\t尝试从存档读取上市公司列表-失败", market.Name())
-			return nil, err
-		}
-
-		companies = cl
-		log.Printf("[%s]\t尝试从存档读取上市公司列表-成功,共%d家上市公司", market.Name(), len(companies))
-
-		return companies, nil
+		log.Fatal(err)
 	}
-
-	//	存档
-	cl = CompanyList(companies)
-	err = cl.Save(market)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Printf("[%s]\t更新上市公司列表-成功,共%d家上市公司", market.Name(), len(companies))
-
-	return companies, nil
-}
-
-//	抓取市场前一天的数据
-func crawlYesterday(market Market) error {
-
-	//	获取市场内的所有上市公司
-	companies, err := companies(market)
-	if err != nil {
-		return err
-	}
-
-	//	前一天
-	yesterday := locationNow(market).Truncate(time.Hour * 24).Add(-time.Hour * 24)
 
 	chanSend := make(chan int, companyGCCount)
 	chanReceive := make(chan int)
@@ -195,21 +129,17 @@ func crawlYesterday(market Market) error {
 	close(chanSend)
 	close(chanReceive)
 
-	return nil
 }
 
-//	市场历史
-func marketHistory(market Market) error {
-	//	获取市场内的所有上市公司
-	companies, err := companies(market)
+//	历史数据获取任务
+func historyTask(market Market, yesterday time.Time) {
+	//	获取市场所有上市公司
+	companies, err := getCompanies(market)
 	if err != nil {
-		return err
+		log.Fatal(err)
 	}
 
-	log.Printf("[%s]\t开始抓取%d家上市公司的历史", market.Name(), len(companies))
-
-	//	前一天
-	yesterday := locationNow(market).Truncate(time.Hour * 24).Add(-time.Hour * 24)
+	log.Printf("[%s]\t开始抓取%d家上市公司在%s之前的历史", market.Name(), len(companies), yesterday.Format("20060102"))
 
 	chanSend := make(chan int, companyGCCount)
 	chanReceive := make(chan int)
@@ -218,7 +148,13 @@ func marketHistory(market Market) error {
 		//	并发抓取
 		go func(company Company) {
 
-			marketCompanyHistory(market, company, yesterday)
+			for index := 0; index < lastestDays; index++ {
+				day := yesterday.Add(-time.Hour * 24 * time.Duration(index))
+				err := market.Crawl(market, company, day)
+				if err != nil {
+					log.Fatalf("[%s]\t抓取[%s]在%s的分时数据出错:%s", market.Name(), company.Code, day.Format("20060102"), err)
+				}
+			}
 
 			<-chanSend
 			chanReceive <- 1
@@ -235,17 +171,39 @@ func marketHistory(market Market) error {
 	close(chanSend)
 	close(chanReceive)
 
-	return nil
+	log.Printf("[%s]\t上市公司的历史分时数据已经抓取结束", market.Name())
 }
 
-//	公司历史
-func marketCompanyHistory(market Market, company Company, day time.Time) {
-	//	查询之前一段时间的数据
-	for index := 0; index < lastestDays; index++ {
-		day = day.Add(-time.Hour * 24)
-		err := market.Crawl(market, company, day)
+//	抓取市场上市公司信息
+func getCompanies(market Market) ([]Company, error) {
+
+	cl := CompanyList{}
+	//	尝试更新上市公司列表
+	log.Printf("[%s]\t更新上市公司列表-开始", market.Name())
+	companies, err := market.Companies()
+	if err != nil {
+
+		//	如果更新失败，则尝试从上次的存档文件中读取上市公司列表
+		log.Printf("[%s]\t更新上市公司列表失败，尝试从存档读取", market.Name())
+		err = cl.Load(market)
 		if err != nil {
-			log.Fatal(err)
+			return nil, fmt.Errorf("[%s]\t尝试从存档读取上市公司列表-失败", market.Name())
 		}
+
+		companies = cl
+		log.Printf("[%s]\t尝试从存档读取上市公司列表-成功,共%d家上市公司", market.Name(), len(companies))
+
+		return companies, nil
 	}
+
+	//	存档
+	cl = CompanyList(companies)
+	err = cl.Save(market)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("[%s]\t更新上市公司列表-成功,共%d家上市公司", market.Name(), len(companies))
+
+	return companies, nil
 }
