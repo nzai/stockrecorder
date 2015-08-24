@@ -44,10 +44,9 @@ func Monitor() {
 
 		//	启动每日定时任务
 		go func(market Market) {
-			//	所处时区的明日0点
+			//	所处时区距明日0点的间隔
 			now := locationNow(market)
-			tomorrowZero := now.Truncate(time.Hour * 24).Add(time.Hour * 24)
-			du := tomorrowZero.Sub(now)
+			du := locationYesterdayZero(market).Add(time.Hour * 48).Sub(now)
 
 			log.Printf("[%s]\t定时任务已启动，将于%s后激活首次任务", market.Name(), du.String())
 			time.AfterFunc(du, func() {
@@ -65,7 +64,7 @@ func Monitor() {
 
 		//	启动历史数据获取任务
 		go func(market Market) {
-			historyTask(market, yesterdayZero(market))
+			historyTask(market, locationYesterdayZero(market))
 		}(m)
 	}
 }
@@ -84,16 +83,18 @@ func locationNow(market Market) time.Time {
 }
 
 //	昨天0点
-func yesterdayZero(market Market) time.Time {
+func locationYesterdayZero(market Market) time.Time {
 	now := locationNow(market)
-	return now.Truncate(time.Hour * 24)
+	year, month, day := now.Add(-time.Hour * 24).Date()
+
+	return time.Date(year, month, day, 0, 0, 0, 0, now.Location())
 }
 
 //	每日定时任务
 func dailyTask(market Market) {
 
 	//	昨天零点
-	yesterday := yesterdayZero(market)
+	yesterday := locationYesterdayZero(market)
 	log.Printf("[%s]\t%s数据获取任务已启动", market.Name(), yesterday.Format("20060102"))
 
 	//	获取市场所有上市公司
