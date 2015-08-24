@@ -1,7 +1,6 @@
 package io
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -51,11 +50,12 @@ func DownloadStringRefererRetry(url, referer string, retryTimes, intervalSeconds
 		}
 
 		if times > 0 {
-			log.Fatalf("访问%s出错，还有%d次重试机会，%d秒后重试:%s", url, times, intervalSeconds, err)
+			log.Fatalf("访问%s出错，还有%d次重试机会，%d秒后重试:%v", url, times, intervalSeconds, err)
 			//	延时
 			time.Sleep(time.Duration(intervalSeconds) * time.Second)
+			log.Fatalf("访问%s出错，还有%d次重试机会，开始重试:%v", url, times)
 		}
 	}
 
-	return "", errors.New(fmt.Sprintf("访问%s出错，已重试%d次，不再重试:%s", url, retryTimes, err))
+	return "", fmt.Errorf("访问%s出错，已重试%d次，不再重试:%v", url, retryTimes, err)
 }
