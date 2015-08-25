@@ -187,10 +187,10 @@ func getCompanies(market Market) ([]Company, error) {
 	if err != nil {
 
 		//	如果更新失败，则尝试从上次的存档文件中读取上市公司列表
-		log.Printf("[%s]\t更新上市公司列表失败，尝试从存档读取", market.Name())
+		log.Printf("[%s]\t更新上市公司列表失败，尝试从存档读取:%v", market.Name(), err)
 		err = cl.Load(market)
 		if err != nil {
-			return nil, fmt.Errorf("[%s]\t尝试从存档读取上市公司列表-失败", market.Name())
+			return nil, fmt.Errorf("[%s]\t尝试从存档读取上市公司列表-失败:%v", market.Name(), err)
 		}
 
 		companies = cl
