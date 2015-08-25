@@ -15,6 +15,8 @@ func StartTasks() error {
 		market.Add(market.America{})
 		//	中国股市
 		market.Add(market.China{})
+		//	香港股市
+		market.Add(market.HongKong{})
 
 		market.Monitor()
 	}()
