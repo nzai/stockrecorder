@@ -25,21 +25,40 @@ func (m China) Timezone() string {
 //	更新上市公司列表
 func (m China) Companies() ([]Company, error) {
 
-	companies := make([]Company, 0)
+	dict := make(map[string]Company, 0)
 
 	//	上海证券交易所
 	sh, err := m.shanghaiCompanies()
 	if err != nil {
 		return nil, err
 	}
-	companies = append(companies, sh...)
+	for _, company := range sh {
+		//	去重
+		if _, found := dict[company.Code]; found {
+			continue
+		}
+
+		dict[company.Code] = company
+	}
 
 	//	深圳证券交易所
 	sz, err := m.shenzhenCompanies()
 	if err != nil {
 		return nil, err
 	}
-	companies = append(companies, sz...)
+	for _, company := range sz {
+		//	去重
+		if _, found := dict[company.Code]; found {
+			continue
+		}
+
+		dict[company.Code] = company
+	}
+
+	companies := make([]Company, 0)
+	for _, company := range dict {
+		companies = append(companies, company)
+	}
 
 	//	按Code排序
 	sort.Sort(CompanyList(companies))
