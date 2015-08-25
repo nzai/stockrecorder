@@ -130,6 +130,7 @@ func dailyTask(market Market) {
 	close(chanSend)
 	close(chanReceive)
 
+	log.Printf("[%s]\t%s数据获取任务已结束", market.Name(), yesterday.Format("20060102"))
 }
 
 //	历史数据获取任务
