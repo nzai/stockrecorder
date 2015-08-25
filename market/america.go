@@ -2,7 +2,6 @@ package market
 
 import (
 	"encoding/csv"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -69,7 +68,7 @@ func (m America) parseCSV(content string) ([]Company, error) {
 	companies := make([]Company, 0)
 	for _, parts := range records[1:] {
 		if len(parts) < 2 {
-			return nil, errors.New(fmt.Sprintf("错误的美股上市公司CSV格式:%v", parts))
+			return nil, fmt.Errorf("错误的美股上市公司CSV格式:%v", parts)
 		}
 
 		companies = append(companies, Company{Code: strings.Trim(parts[0], " "), Name: strings.Trim(parts[1], " ")})

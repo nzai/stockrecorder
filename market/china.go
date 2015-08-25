@@ -1,7 +1,6 @@
 package market
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -105,12 +104,11 @@ func (m China) parseShanghaiJson(json string) ([]Company, error) {
 
 	companies := make([]Company, 0)
 	for _, section := range group {
-		//log.Printf("%s\t%s\n", section[2], section[1])
 		companies = append(companies, Company{Code: section[2], Name: section[1]})
 	}
 
 	if len(companies) == 0 {
-		return nil, errors.New(fmt.Sprintf("错误的上海证券交易所上市公司列表内容:%s", json))
+		return nil, fmt.Errorf("错误的上海证券交易所上市公司列表内容:%s", json)
 	}
 
 	return companies, nil
@@ -161,7 +159,7 @@ func (m China) parseShenzhenHtml(html string) ([]Company, error) {
 	}
 
 	if len(companies) == 0 {
-		return nil, errors.New(fmt.Sprintf("错误的深圳证券交易所上市公司列表内容:%s", html))
+		return nil, fmt.Errorf("错误的深圳证券交易所上市公司列表内容:%s", html)
 	}
 
 	return companies, nil
