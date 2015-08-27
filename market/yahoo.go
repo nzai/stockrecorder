@@ -38,3 +38,70 @@ func DownloadCompanyDaily(marketName, companyCode, queryCode string, day time.Ti
 
 	return nil
 }
+
+type YahooJson struct {
+	Chart YahooChart `json:"chart"`
+}
+
+type YahooChart struct {
+	Result []YahooResult `json:"result"`
+	Err    YahooError    `json:"error"`
+}
+
+type YahooError struct {
+	Code        string `json:"code"`
+	Description string `json:"description"`
+}
+
+type YahooResult struct {
+	Meta       YahooMeta       `json:"meta"`
+	Timestamp  []int64         `json:"timestamp"`
+	Indicators YahooIndicators `json:"indicators"`
+}
+
+type YahooMeta struct {
+	Currency             string              `json:"currency"`
+	Symbol               string              `json:"symbol"`
+	ExchangeName         string              `json:"exchangeName"`
+	InstrumentType       string              `json:"instrumentType"`
+	FirstTradeDate       int64               `json:"firstTradeDate"`
+	GMTOffset            int                 `json:"gmtoffset"`
+	Timezone             string              `json:"timezone"`
+	PreviousClose        float32             `json:"previousClose"`
+	Scale                int                 `json:"scale"`
+	CurrentTradingPeriod YahooTradingPeroid  `json:"currentTradingPeriod"`
+	TradingPeriods       YahooTradingPeroids `json:"tradingPeriods"`
+	DataGranularity      string              `json:"dataGranularity"`
+	ValidRanges          []string            `json:"validRanges"`
+}
+
+type YahooTradingPeroid struct {
+	Pre     YahooTradingPeroidSection `json:"pre"`
+	Regular YahooTradingPeroidSection `json:"regular"`
+	Post    YahooTradingPeroidSection `json:"post"`
+}
+
+type YahooTradingPeroids struct {
+	Pres     [][]YahooTradingPeroidSection `json:"pre"`
+	Regulars [][]YahooTradingPeroidSection `json:"regular"`
+	Posts    [][]YahooTradingPeroidSection `json:"post"`
+}
+
+type YahooTradingPeroidSection struct {
+	Timezone  string `json:"timezone"`
+	Start     int64  `json:"start"`
+	End       int64  `json:"end"`
+	GMTOffset int    `json:"gmtoffset"`
+}
+
+type YahooIndicators struct {
+	Quotes []YahooQuote `json:"quote"`
+}
+
+type YahooQuote struct {
+	Open   []float32 `json:"open"`
+	Close  []float32 `json:"close"`
+	High   []float32 `json:"high"`
+	Low    []float32 `json:"low"`
+	Volume []int64   `json:"volume"`
+}
