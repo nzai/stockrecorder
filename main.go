@@ -29,14 +29,14 @@ func main() {
 	//	读取配置文件
 	err := config.SetRootDir(rootDir)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("读取配置文件错误: ", err)
 		return
 	}
 
 	//	打开日志文件
-	file, err := openLogFile(rootDir)
+	file, err := openLogFile()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("打开日志文件错误: ", err)
 		return
 	}
 	defer file.Close()
@@ -47,6 +47,7 @@ func main() {
 	//	启动任务
 	err = task.StartTasks()
 	if err != nil {
+		log.Fatal("启动任务发生错误: ", err)
 		log.Fatal(err)
 		return
 	}
@@ -57,11 +58,9 @@ func main() {
 }
 
 //	打开日志文件
-func openLogFile(rootDir string) (*os.File, error) {
+func openLogFile() (*os.File, error) {
 	//	日志文件路径
-	dataDir := config.GetDataDir()
-
-	logPath := filepath.Join(dataDir, logFileName)
+	logPath := filepath.Join(config.Get().DataDir, logFileName)
 
 	return os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0660)
 }

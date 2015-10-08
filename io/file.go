@@ -2,6 +2,7 @@ package io
 
 import (
 	"bufio"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -60,8 +61,8 @@ func openForWrite(filePath string) (*os.File, error) {
 	return os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0660)
 }
 
-//	读取文件
-func ReadLines(filePath string) ([]string, error) {
+//	打开文件
+func openForRead(filePath string) (*os.File, error) {
 	//	检查文件
 	_, err := os.Stat(filePath)
 	if err != nil {
@@ -69,7 +70,13 @@ func ReadLines(filePath string) ([]string, error) {
 	}
 
 	//	打开文件
-	file, err := os.OpenFile(filePath, os.O_RDONLY, 0660)
+	return os.OpenFile(filePath, os.O_RDONLY, 0660)
+}
+
+//	读取文件
+func ReadLines(filePath string) ([]string, error) {
+	//	打开文件
+	file, err := openForRead(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -83,4 +90,26 @@ func ReadLines(filePath string) ([]string, error) {
 	}
 
 	return lines, scanner.Err()
+}
+
+//	读取所有
+func ReadAllBytes(filePath string) ([]byte, error) {
+	//	打开文件
+	file, err := openForRead(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	return ioutil.ReadAll(file)
+}
+
+//	读取所有
+func ReadAllString(filePath string) (string, error) {
+	buffer, err := ReadAllBytes(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	return string(buffer), nil
 }

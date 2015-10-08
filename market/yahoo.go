@@ -1,43 +1,16 @@
 package market
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/nzai/stockrecorder/analyse"
 	"github.com/nzai/stockrecorder/config"
 	"github.com/nzai/stockrecorder/io"
 )
-
-//	从雅虎财经获取上市公司分时数据
-func DownloadCompanyDaily(marketName, companyCode, queryCode string, day time.Time) error {
-	//	文件保存路径
-	dataDir := config.GetDataDir()
-	fileName := fmt.Sprintf("%s_raw.txt", day.Format("20060102"))
-	filePath := filepath.Join(dataDir, marketName, companyCode, fileName)
-
-	//	如果文件已存在就忽略
-	_, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		//	如果不存在就抓取并保存
-		start := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, day.Location())
-		end := start.Add(time.Hour * 24)
-
-		pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%7Csplit%7Cearn&corsDomain=finance.yahoo.com"
-		url := fmt.Sprintf(pattern, queryCode, end.Unix(), start.Unix())
-
-		html, err := io.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
-		if err != nil {
-			return err
-		}
-
-		//	写入文件
-		return io.WriteString(filePath, html)
-	}
-
-	return nil
-}
 
 type YahooJson struct {
 	Chart YahooChart `json:"chart"`
@@ -45,7 +18,7 @@ type YahooJson struct {
 
 type YahooChart struct {
 	Result []YahooResult `json:"result"`
-	Err    YahooError    `json:"error"`
+	Err    *YahooError   `json:"error"`
 }
 
 type YahooError struct {
@@ -104,4 +77,122 @@ type YahooQuote struct {
 	High   []float32 `json:"high"`
 	Low    []float32 `json:"low"`
 	Volume []int64   `json:"volume"`
+}
+
+//	从雅虎财经获取上市公司分时数据
+func DownloadCompanyDaily(marketName, companyCode, queryCode string, day time.Time) error {
+	//	文件保存路径
+	fileName := fmt.Sprintf("%s_raw.txt", day.Format("20060102"))
+	filePath := filepath.Join(config.Get().DataDir, marketName, companyCode, fileName)
+
+	//	如果文件已存在就忽略
+	_, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		//	如果不存在就抓取并保存
+		start := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, day.Location())
+		end := start.Add(time.Hour * 24)
+
+		pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%7Csplit%7Cearn&corsDomain=finance.yahoo.com"
+		url := fmt.Sprintf(pattern, queryCode, end.Unix(), start.Unix())
+
+		html, err := io.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
+		if err != nil {
+			return err
+		}
+
+		//	写入文件
+		return io.WriteString(filePath, html)
+	}
+
+	return nil
+}
+
+func ParseDailyYahooJson(marketName, companyCode string, date time.Time, buffer []byte) (*analyse.DailyAnalyzeResult, error) {
+
+	yj := &YahooJson{}
+	err := json.Unmarshal(buffer, &yj)
+	if err != nil {
+		return nil, fmt.Errorf("解析雅虎Json发生错误: %s", err)
+	}
+	//	log.Print("AAAAA:", yj)
+
+	result := &analyse.DailyAnalyzeResult{
+		DailyResult: analyse.DailyResult{
+			Code:    companyCode,
+			Market:  marketName,
+			Date:    date,
+			Error:   false,
+			Message: ""},
+		Pre:     make([]analyse.Peroid60, 0),
+		Regular: make([]analyse.Peroid60, 0),
+		Post:    make([]analyse.Peroid60, 0)}
+
+	//	检查数据
+	err = validateDailyYahooJson(yj)
+	if err != nil {
+		result.DailyResult.Error = true
+		result.DailyResult.Message = err.Error()
+
+		return result, nil
+	}
+
+	periods, quote := yj.Chart.Result[0].Meta.TradingPeriods, yj.Chart.Result[0].Indicators.Quotes[0]
+	for index, ts := range yj.Chart.Result[0].Timestamp {
+
+		p := analyse.Peroid60{
+			Code:   companyCode,
+			Market: marketName,
+			Start:  time.Unix(ts, 0),
+			End:    time.Unix(ts+60, 0),
+			Open:   quote.Open[index],
+			Close:  quote.Close[index],
+			High:   quote.High[index],
+			Low:    quote.Low[index],
+			Volume: quote.Volume[index]}
+
+		//	Pre, Regular, Post
+		if ts >= periods.Pres[0][0].Start && ts < periods.Pres[0][0].End {
+			result.Pre = append(result.Pre, p)
+		} else if ts >= periods.Regulars[0][0].Start && ts < periods.Regulars[0][0].End {
+			result.Regular = append(result.Regular, p)
+		} else if ts >= periods.Posts[0][0].Start && ts < periods.Posts[0][0].End {
+			result.Post = append(result.Regular, p)
+		}
+	}
+
+	return result, nil
+}
+
+func validateDailyYahooJson(yj *YahooJson) error {
+
+	if yj.Chart.Err != nil {
+		return fmt.Errorf("[%s]%s", yj.Chart.Err.Code, yj.Chart.Err.Description)
+	}
+
+	if yj.Chart.Result == nil || len(yj.Chart.Result) == 0 {
+		return fmt.Errorf("Result为空")
+	}
+
+	if yj.Chart.Result[0].Indicators.Quotes == nil || len(yj.Chart.Result[0].Indicators.Quotes) == 0 {
+		return fmt.Errorf("Quotes为空")
+	}
+
+	result, quote := yj.Chart.Result[0], yj.Chart.Result[0].Indicators.Quotes[0]
+	if len(result.Timestamp) != len(quote.Open) ||
+		len(result.Timestamp) != len(quote.Close) ||
+		len(result.Timestamp) != len(quote.High) ||
+		len(result.Timestamp) != len(quote.Low) ||
+		len(result.Timestamp) != len(quote.Volume) {
+		return fmt.Errorf("Quotes数量不正确")
+	}
+
+	if len(result.Meta.TradingPeriods.Pres) == 0 ||
+		len(result.Meta.TradingPeriods.Pres[0]) == 0 ||
+		len(result.Meta.TradingPeriods.Posts) == 0 ||
+		len(result.Meta.TradingPeriods.Posts[0]) == 0 ||
+		len(result.Meta.TradingPeriods.Regulars) == 0 ||
+		len(result.Meta.TradingPeriods.Regulars[0]) == 0 {
+		return fmt.Errorf("TradingPeriods数量不正确")
+	}
+	return nil
 }

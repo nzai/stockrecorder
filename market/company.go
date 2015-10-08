@@ -35,7 +35,7 @@ func (l CompanyList) Less(i, j int) bool {
 
 //	上市公司列表保存路径
 func storePath(market Market) string {
-	return filepath.Join(config.GetDataDir(), market.Name(), companiesFileName)
+	return filepath.Join(config.Get().DataDir, market.Name(), companiesFileName)
 }
 
 //	保存上市公司列表到文件
