@@ -1,10 +1,6 @@
 {
 	"EnableCrawl": true,
-	"EnableAnalyse": false,
+	"EnableAnalyse": true,
 	"DataDir": "c:\\data",
-	"MongoDB": {
-		"IP": "127.0.0.1",
-		"Port": 27017,
-		"Database": "stock"
-	}
+	"MongoUrl": "mongodb://localhost"
 }
