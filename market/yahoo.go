@@ -9,6 +9,7 @@ import (
 
 	"github.com/nzai/stockrecorder/analyse"
 	"github.com/nzai/stockrecorder/config"
+	"github.com/nzai/stockrecorder/db"
 	"github.com/nzai/stockrecorder/io"
 )
 
@@ -86,6 +87,7 @@ func DownloadCompanyDaily(marketName, companyCode, queryCode string, day time.Ti
 	filePath := filepath.Join(config.Get().DataDir, marketName, companyCode, fileName)
 
 	//	如果文件已存在就忽略
+	var content []byte
 	_, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
 		//	如果不存在就抓取并保存
@@ -100,14 +102,52 @@ func DownloadCompanyDaily(marketName, companyCode, queryCode string, day time.Ti
 			return err
 		}
 
+		content = []byte(html)
+
 		//	写入文件
 		return io.WriteString(filePath, html)
+	}
+
+	//	如果不解析
+	if !config.Get().EnableAnalyse {
+		return nil
+	}
+
+	//	检查数据库是否解析过,解析过就忽略
+	found, err := db.DailyExists(marketName, companyCode, day)
+	if err != nil {
+		return err
+	}
+
+	if !found {
+		if content == nil {
+			//	读取文件
+			buffer, err := io.ReadAllBytes(filePath)
+			if err != nil {
+				return err
+			}
+
+			content = buffer
+		}
+
+		//	解析
+		dar, err := parseDailyYahooJson(marketName, companyCode, day, content)
+		if err != nil {
+			return err
+		}
+
+		//	保存
+		err = db.DailySave(dar)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func ParseDailyYahooJson(marketName, companyCode string, date time.Time, buffer []byte) (*analyse.DailyAnalyzeResult, error) {
+//	解析雅虎Json
+func parseDailyYahooJson(marketName, companyCode string, date time.Time, buffer []byte) (*analyse.DailyAnalyzeResult, error) {
 
 	yj := &YahooJson{}
 	err := json.Unmarshal(buffer, &yj)
