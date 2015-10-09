@@ -26,7 +26,7 @@ func StartTasks() error {
 	}
 
 	//	启动分析任务
-	if config.Get().EnableCrawl {
+	if config.Get().EnableAnalyse {
 		log.Print("启动分析任务")
 		//	go analyse.StartJobs()
 	}
