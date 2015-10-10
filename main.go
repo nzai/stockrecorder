@@ -48,7 +48,7 @@ func main() {
 	err = task.StartTasks()
 	if err != nil {
 		log.Fatal("启动任务发生错误: ", err)
-		log.Fatal(err)
+		
 		return
 	}
 
