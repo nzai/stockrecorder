@@ -7,7 +7,6 @@ import (
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 
-	"github.com/nzai/stockrecorder/analyse"
 )
 
 //	检查分析结果是否存在
@@ -27,7 +26,7 @@ func DailyExists(market, code string, day time.Time) (bool, error) {
 }
 
 //	保存分析结果
-func DailySave(dar *analyse.DailyAnalyzeResult) error {
+func DailySave(dar *DailyAnalyzeResult) error {
 	session, err := Get()
 	if err != nil {
 		return err
@@ -62,7 +61,7 @@ func DailySave(dar *analyse.DailyAnalyzeResult) error {
 }
 
 //	批量保存
-func batchInsertPeroid60(c *mgo.Collection, array []analyse.Peroid60) error {
+func batchInsertPeroid60(c *mgo.Collection, array []Peroid60) error {
 
 	if len(array) == 0 {
 		return nil
