@@ -1,6 +1,4 @@
 {
-	"EnableCrawl": true,
-	"EnableAnalyse": true,
 	"DataDir": "c:\\data",
 	"MongoUrl": "mongodb://localhost"
 }
