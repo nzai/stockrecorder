@@ -39,9 +39,23 @@ func WriteString(filePath, content string) error {
 	}
 	defer file.Close()
 
-	file.WriteString(content)
+	_, err = file.WriteString(content)
 
-	return nil
+	return err
+}
+
+//	写入缓冲区
+func WriteBytes(filePath string, buffer []byte) error {
+	//	打开文件
+	file, err := openForWrite(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.Write(buffer)
+
+	return err
 }
 
 //	打开文件
