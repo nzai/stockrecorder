@@ -15,8 +15,6 @@ const (
 )
 
 type Config struct {
-	EnableCrawl   bool
-	EnableAnalyse bool
 	RootDir       string
 	DataDir       string
 	MongoUrl      string
