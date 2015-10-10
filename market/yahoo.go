@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/nzai/stockrecorder/analyse"
 	"github.com/nzai/stockrecorder/config"
 	"github.com/nzai/stockrecorder/db"
 	"github.com/nzai/stockrecorder/io"
@@ -82,90 +81,106 @@ type YahooQuote struct {
 
 //	从雅虎财经获取上市公司分时数据
 func DownloadCompanyDaily(marketName, companyCode, queryCode string, day time.Time) error {
+
+	//	检查数据库是否解析过
+	found, err := db.DailyExists(marketName, companyCode, day)
+	if err != nil {
+		return err
+	}
+
+	//	解析过的不再重复解析
+	if found {
+		return nil
+	}
+
 	//	文件保存路径
 	fileName := fmt.Sprintf("%s_raw.txt", day.Format("20060102"))
 	filePath := filepath.Join(config.Get().DataDir, marketName, companyCode, fileName)
 
-	//	如果文件已存在就忽略
-	var content []byte
-	_, err := os.Stat(filePath)
+	var buffer []byte
+	fileExists := false
+
+	//	检查磁盘上数据文件是否已经存在
+	_, err = os.Stat(filePath)
 	if os.IsNotExist(err) {
-		//	如果不存在就抓取并保存
+
+		//	如果不存在就抓取
 		start := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, day.Location())
 		end := start.Add(time.Hour * 24)
 
 		pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%7Csplit%7Cearn&corsDomain=finance.yahoo.com"
 		url := fmt.Sprintf(pattern, queryCode, end.Unix(), start.Unix())
 
-		html, err := io.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
+		//	查询Yahoo财经接口,返回股票分时数据
+		content, err := io.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
 		if err != nil {
 			return err
 		}
 
-		content = []byte(html)
-
-		//	写入文件
-		return io.WriteString(filePath, html)
+		buffer = []byte(content)
+	} else {
+		fileExists = true
+		
+		//	如果已经存在就读取文件
+		buffer, err = io.ReadAllBytes(filePath)
+		if err != nil {
+			return err
+		}
 	}
 
-	//	如果不解析
-	if !config.Get().EnableAnalyse {
-		return nil
-	}
-
-	//	检查数据库是否解析过,解析过就忽略
-	found, err := db.DailyExists(marketName, companyCode, day)
+	//	解析
+	dar, err := ParseDailyYahooJson(marketName, companyCode, day, buffer)
 	if err != nil {
+
+		//	解析错误的先保存为文件
+		err1 := saveDaily(marketName, companyCode, day, buffer)
+		if err1 != nil {
+			return err1
+		}
+
 		return err
 	}
 
-	if !found {
-		if content == nil {
-			//	读取文件
-			buffer, err := io.ReadAllBytes(filePath)
-			if err != nil {
-				return err
-			}
+	//	保存
+	err = db.DailySave(dar)
+	if err != nil {
 
-			content = buffer
+		//	保存错误的先保存为文件
+		err1 := saveDaily(marketName, companyCode, day, buffer)
+		if err1 != nil {
+			return err1
 		}
 
-		//	解析
-		dar, err := parseDailyYahooJson(marketName, companyCode, day, content)
-		if err != nil {
-			return err
-		}
+		return err
+	}
 
-		//	保存
-		err = db.DailySave(dar)
-		if err != nil {
-			return err
-		}
+	if fileExists {
+		//	解析成功就删除文件
+		return os.Remove(filePath)
 	}
 
 	return nil
 }
 
 //	解析雅虎Json
-func parseDailyYahooJson(marketName, companyCode string, date time.Time, buffer []byte) (*analyse.DailyAnalyzeResult, error) {
+func ParseDailyYahooJson(marketName, companyCode string, date time.Time, buffer []byte) (*db.DailyAnalyzeResult, error) {
 
 	yj := &YahooJson{}
 	err := json.Unmarshal(buffer, &yj)
 	if err != nil {
 		return nil, fmt.Errorf("解析雅虎Json发生错误: %s", err)
 	}
-	//	log.Print("AAAAA:", yj)
 
-	result := &analyse.DailyAnalyzeResult{
-		DailyResult: analyse.DailyResult{
+	result := &db.DailyAnalyzeResult{
+		DailyResult: db.DailyResult{
 			Code:    companyCode,
 			Market:  marketName,
 			Date:    date,
 			Error:   false,
 			Message: ""},
-		Pre:     make([]analyse.Peroid60, 0),
-		Regular: make([]analyse.Peroid60, 0),
-		Post:    make([]analyse.Peroid60, 0)}
+		Pre:     make([]db.Peroid60, 0),
+		Regular: make([]db.Peroid60, 0),
+		Post:    make([]db.Peroid60, 0)}
 
 	//	检查数据
 	err = validateDailyYahooJson(yj)
@@ -179,7 +194,7 @@ func parseDailyYahooJson(marketName, companyCode string, date time.Time, buffer 
 	periods, quote := yj.Chart.Result[0].Meta.TradingPeriods, yj.Chart.Result[0].Indicators.Quotes[0]
 	for index, ts := range yj.Chart.Result[0].Timestamp {
 
-		p := analyse.Peroid60{
+		p := db.Peroid60{
 			Code:   companyCode,
 			Market: marketName,
 			Start:  time.Unix(ts, 0),
@@ -203,6 +218,7 @@ func parseDailyYahooJson(marketName, companyCode string, date time.Time, buffer 
 	return result, nil
 }
 
+//	验证雅虎Json
 func validateDailyYahooJson(yj *YahooJson) error {
 
 	if yj.Chart.Err != nil {
@@ -234,5 +250,21 @@ func validateDailyYahooJson(yj *YahooJson) error {
 		len(result.Meta.TradingPeriods.Regulars[0]) == 0 {
 		return fmt.Errorf("TradingPeriods数量不正确")
 	}
+	return nil
+}
+
+//	保存到文件
+func saveDaily(marketName, companyCode string, day time.Time, buffer []byte) error {
+
+	//	文件保存路径
+	fileName := fmt.Sprintf("%s_raw.txt", day.Format("20060102"))
+	filePath := filepath.Join(config.Get().DataDir, marketName, companyCode, fileName)
+
+	//	不覆盖原文件
+	_, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		return io.WriteBytes(filePath, buffer)
+	}
+
 	return nil
 }
