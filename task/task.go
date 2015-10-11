@@ -3,7 +3,7 @@ package task
 import (
 	"log"
 
-	"github.com/nzai/stockrecorder/analyse"
+//	"github.com/nzai/stockrecorder/analyse"
 	"github.com/nzai/stockrecorder/market"
 )
 
@@ -23,12 +23,12 @@ func StartTasks() error {
 		market.Monitor()
 	}()
 
-	go func() {
-		log.Print("启动分析任务")
+//	go func() {
+//		log.Print("启动分析任务")
 		
-		//	分析历史数据
-		analyse.AnalyseHistory()
-	}()
+//		//	分析历史数据
+//		analyse.AnalyseHistory()
+//	}()
 
 	return nil
 }

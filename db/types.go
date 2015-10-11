@@ -30,3 +30,12 @@ type Peroid60 struct {
 	Low    float32
 	Volume int64
 }
+
+type Raw60 struct {
+	Code    string
+	Market  string
+	Date    time.Time
+	Json    string
+	Status  int
+	Message string
+}

@@ -83,7 +83,7 @@ type YahooQuote struct {
 func DownloadCompanyDaily(marketName, companyCode, queryCode string, day time.Time) error {
 
 	//	检查数据库是否解析过
-	found, err := db.DailyExists(marketName, companyCode, day)
+	found, err := db.Raw60Exists(marketName, companyCode, day)
 	if err != nil {
 		return err
 	}
@@ -93,71 +93,29 @@ func DownloadCompanyDaily(marketName, companyCode, queryCode string, day time.Ti
 		return nil
 	}
 
-	//	文件保存路径
-	fileName := fmt.Sprintf("%s_raw.txt", day.Format("20060102"))
-	filePath := filepath.Join(config.Get().DataDir, marketName, companyCode, fileName)
+	//	如果不存在就抓取
+	start := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, day.Location())
+	end := start.Add(time.Hour * 24)
 
-	var buffer []byte
-	fileExists := false
+	pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%7Csplit%7Cearn&corsDomain=finance.yahoo.com"
+	url := fmt.Sprintf(pattern, queryCode, end.Unix(), start.Unix())
 
-	//	检查磁盘上数据文件是否已经存在
-	_, err = os.Stat(filePath)
-	if os.IsNotExist(err) {
-
-		//	如果不存在就抓取
-		start := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, day.Location())
-		end := start.Add(time.Hour * 24)
-
-		pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%7Csplit%7Cearn&corsDomain=finance.yahoo.com"
-		url := fmt.Sprintf(pattern, queryCode, end.Unix(), start.Unix())
-
-		//	查询Yahoo财经接口,返回股票分时数据
-		content, err := io.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
-		if err != nil {
-			return err
-		}
-
-		buffer = []byte(content)
-	} else {
-		fileExists = true
-		
-		//	如果已经存在就读取文件
-		buffer, err = io.ReadAllBytes(filePath)
-		if err != nil {
-			return err
-		}
-	}
-
-	//	解析
-	dar, err := ParseDailyYahooJson(marketName, companyCode, day, buffer)
+	//	查询Yahoo财经接口,返回股票分时数据
+	content, err := io.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
 	if err != nil {
-
-		//	解析错误的先保存为文件
-		err1 := saveDaily(marketName, companyCode, day, buffer)
-		if err1 != nil {
-			return err1
-		}
-
 		return err
 	}
 
-	//	保存
-	err = db.DailySave(dar)
-	if err != nil {
+	raw := db.Raw60{
+		Market:  marketName,
+		Code:    companyCode,
+		Date:    day,
+		Json:    content,
+		Status:  0,
+		Message: ""}
 
-		//	保存错误的先保存为文件
-		err1 := saveDaily(marketName, companyCode, day, buffer)
-		if err1 != nil {
-			return err1
-		}
-
-		return err
-	}
-
-	if fileExists {
-		//	解析成功就删除文件
-		return os.Remove(filePath)
-	}
+	//	保存(加入保存队列)
+	db.SaveRaw60(raw)
 
 	return nil
 }

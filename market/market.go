@@ -62,10 +62,10 @@ func Monitor() {
 
 		}(m)
 
-		//	启动历史数据获取任务
-		go func(market Market) {
-			historyTask(market, locationYesterdayZero(market))
-		}(m)
+//		//	启动历史数据获取任务
+//		go func(market Market) {
+//			historyTask(market, locationYesterdayZero(market))
+//		}(m)
 	}
 }
 

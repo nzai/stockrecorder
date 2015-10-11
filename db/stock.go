@@ -1,76 +1,87 @@
 package db
 
 import (
-	"fmt"
+	"log"
 	"time"
 
-	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
-
 )
 
+const (
+	retryTimes           = 50
+	retryIntervalSeconds = 10
+)
+
+var (
+	//	存储队列
+	saveQueue chan Raw60 = make(chan Raw60)
+)
+
+func init() {
+	go saveToDB()
+}
+
+//	以队列的方式保存到数据库
+func saveToDB() {
+	session, err := Get()
+	if err != nil {
+		log.Printf("[DB]\t获取数据库连接失败:%s", err.Error())
+		return
+	}
+	defer session.Close()
+
+	collection := session.DB("stock").C("Raw60")
+
+	for {
+		//	读取队列
+		raw := <-saveQueue
+
+		//	所有新增的记录都是未处理状态
+		raw.Status = 0
+
+		var err error
+		for times := retryTimes - 1; times >= 0; times-- {
+
+			//	查看是否已经保存过
+			count, err := collection.Find(bson.M{"Market": raw.Market, "Code": raw.Code, "Date": raw.Date}).Count()
+			if err == nil {
+				if count == 0 {
+
+					//	保存到数据库
+					err = collection.Insert(raw)
+					if err == nil {
+						break
+					}
+				}
+			}
+
+			if times > 0 {
+				//	延时
+				time.Sleep(time.Duration(retryIntervalSeconds) * time.Second)
+			}
+		}
+
+		log.Printf("[DB]\t保存[%s %s %s]出错,已经重试%d次,不再重试:%s", raw.Market, raw.Code, raw.Date.Format("2006-01-02 15:04:05"), retryTimes, err.Error())
+	}
+}
+
+//	保存
+func SaveRaw60(raw Raw60) {
+	saveQueue <- raw
+}
+
 //	检查分析结果是否存在
-func DailyExists(market, code string, day time.Time) (bool, error) {
+func Raw60Exists(market, code string, date time.Time) (bool, error) {
 	session, err := Get()
 	if err != nil {
 		return false, err
 	}
 	defer session.Close()
 
-	count, err := session.DB("stock").C("DailyResult").Find(bson.M{"Market": market, "Code": code, "Date": day}).Count()
+	count, err := session.DB("stock").C("Raw60").Find(bson.M{"Market": market, "Code": code, "Date": date}).Count()
 	if err != nil {
 		return false, err
 	}
 
 	return count > 0, nil
-}
-
-//	保存分析结果
-func DailySave(dar *DailyAnalyzeResult) error {
-	session, err := Get()
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-
-	//	分析结果
-	err = session.DB("stock").C("DailyResult").Insert(&dar.DailyResult)
-	if err != nil {
-		return fmt.Errorf("保存DailyResult出错:%s", err.Error())
-	}
-
-	//	Pre
-	err = batchInsertPeroid60(session.DB("stock").C("Pre60"), dar.Pre)
-	if err != nil {
-		return fmt.Errorf("保存Pre60出错:%s", err.Error())
-	}
-
-	//	Regular
-	err = batchInsertPeroid60(session.DB("stock").C("Regular60"), dar.Regular)
-	if err != nil {
-		return fmt.Errorf("保存Regular60出错:%s", err.Error())
-	}
-
-	//	Post
-	err = batchInsertPeroid60(session.DB("stock").C("Post60"), dar.Post)
-	if err != nil {
-		return fmt.Errorf("保存Post60出错:%s", err.Error())
-	}
-
-	return nil
-}
-
-//	批量保存
-func batchInsertPeroid60(c *mgo.Collection, array []Peroid60) error {
-
-	if len(array) == 0 {
-		return nil
-	}
-
-	var docs []interface{}
-	for _, item := range array {
-		docs = append(docs, item)
-	}
-
-	return c.Insert(docs...)
 }
