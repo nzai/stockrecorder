@@ -14,10 +14,12 @@ const (
 
 var (
 	//	存储队列
-	saveQueue chan Raw60 = make(chan Raw60)
+	saveQueue chan Raw60 = nil
 )
 
 func init() {
+	saveQueue = make(chan Raw60)
+
 	go saveToDB()
 }
 
@@ -31,7 +33,6 @@ func saveToDB() {
 	defer session.Close()
 
 	collection := session.DB("stock").C("Raw60")
-
 	for {
 		//	读取队列
 		raw := <-saveQueue
@@ -41,7 +42,6 @@ func saveToDB() {
 
 		var err error
 		for times := retryTimes - 1; times >= 0; times-- {
-
 			//	查看是否已经保存过
 			count, err := collection.Find(bson.M{"Market": raw.Market, "Code": raw.Code, "Date": raw.Date}).Count()
 			if err == nil {
@@ -61,7 +61,9 @@ func saveToDB() {
 			}
 		}
 
-		log.Printf("[DB]\t保存[%s %s %s]出错,已经重试%d次,不再重试:%s", raw.Market, raw.Code, raw.Date.Format("2006-01-02 15:04:05"), retryTimes, err.Error())
+		if err != nil {
+			log.Printf("[DB]\t保存[%s %s %s]出错,已经重试%d次,不再重试:%s", raw.Market, raw.Code, raw.Date.Format("2006-01-02 15:04:05"), retryTimes, err.Error())
+		}
 	}
 }
 
