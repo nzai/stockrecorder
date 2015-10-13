@@ -34,25 +34,32 @@ func saveToDB() {
 
 	collection := session.DB("stock").C("Raw60")
 	for {
-		//	读取队列
 		raw := <-saveQueue
-
 		//	所有新增的记录都是未处理状态
 		raw.Status = 0
 
+		rawlist := make([]interface{}, 0)
+		rawlist = append(rawlist, raw)
+
+		//	如果队列长度超过1，就批量新增
+		queueLength := len(saveQueue)
+		if queueLength > 0 {
+			//	读取队列
+			for index := 0; index < queueLength; index++ {
+				raw := <-saveQueue
+				//	所有新增的记录都是未处理状态
+				raw.Status = 0
+
+				rawlist = append(rawlist, raw)
+			}
+		}
+
 		var err error
 		for times := retryTimes - 1; times >= 0; times-- {
-			//	查看是否已经保存过
-			count, err := collection.Find(bson.M{"Market": raw.Market, "Code": raw.Code, "Date": raw.Date}).Count()
+			//	保存到数据库
+			err = collection.Insert(rawlist...)
 			if err == nil {
-				if count == 0 {
-
-					//	保存到数据库
-					err = collection.Insert(raw)
-					if err == nil {
-						break
-					}
-				}
+				break
 			}
 
 			if times > 0 {
