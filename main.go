@@ -19,7 +19,7 @@ func main() {
 		// 捕获panic异常
 		log.Print("发生了致命错误")
 		if err := recover(); err != nil {
-			log.Print(err)
+			log.Print("致命错误:", err)
 		}
 	}()
 
@@ -60,7 +60,7 @@ func main() {
 //	打开日志文件
 func openLogFile() (*os.File, error) {
 	//	日志文件路径
-	logPath := filepath.Join(config.Get().DataDir, logFileName)
+	logPath := filepath.Join(config.Get().RootDir, logFileName)
 
 	return os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0660)
 }
