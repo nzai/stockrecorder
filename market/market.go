@@ -37,8 +37,14 @@ func Add(market Market) {
 }
 
 //	监视市场(所有操作的入口)
-func Monitor() {
+func Monitor() error {
 	log.Print("启动监视")
+
+	//	查询已经保存的Raw60
+	err := loadSavedRaw60()
+	if err != nil {
+		return fmt.Errorf("查询已经保存的Raw60失败:%s", err.Error())
+	}
 
 	for _, m := range markets {
 
@@ -67,6 +73,8 @@ func Monitor() {
 			historyTask(market, locationYesterdayZero(market))
 		}(m)
 	}
+
+	return nil
 }
 
 //	所处时区当前时间
@@ -100,7 +108,8 @@ func dailyTask(market Market) {
 	//	获取市场所有上市公司
 	companies, err := getCompanies(market)
 	if err != nil {
-		log.Print(err)
+		log.Printf("[%s]\t获取上市公司失败: %s", market.Name(), err.Error())
+		return
 	}
 
 	chanSend := make(chan int, companyGCCount)
@@ -112,7 +121,7 @@ func dailyTask(market Market) {
 
 			err := market.Crawl(market, company, yesterday)
 			if err != nil {
-				log.Print(err)
+				log.Printf("[%s]\t抓取上市公司[%s]数据失败: %s", market.Name(), company.Name, err.Error())
 			}
 
 			<-chanSend
@@ -138,7 +147,7 @@ func historyTask(market Market, yesterday time.Time) {
 	//	获取市场所有上市公司
 	companies, err := getCompanies(market)
 	if err != nil {
-		log.Print(err)
+		log.Printf("[%s]\t获取上市公司失败: %s", market.Name(), err.Error())
 		return
 	}
 
