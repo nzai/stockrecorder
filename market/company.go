@@ -1,13 +1,10 @@
 package market
 
 import (
-	"errors"
 	"fmt"
-	"path/filepath"
-	"strings"
 
-	"github.com/nzai/stockrecorder/config"
-	"github.com/nzai/stockrecorder/io"
+	"github.com/nzai/stockrecorder/db"
+	"gopkg.in/mgo.v2/bson"
 )
 
 const (
@@ -16,8 +13,9 @@ const (
 
 //	公司
 type Company struct {
-	Name string
-	Code string
+	Market string
+	Name   string
+	Code   string
 }
 
 //	公司列表
@@ -33,37 +31,46 @@ func (l CompanyList) Less(i, j int) bool {
 	return l[i].Code < l[j].Code
 }
 
-//	上市公司列表保存路径
-func storePath(market Market) string {
-	return filepath.Join(config.Get().DataDir, market.Name(), companiesFileName)
-}
-
 //	保存上市公司列表到文件
 func (l CompanyList) Save(market Market) error {
-	lines := make([]string, 0)
+
+	//	连接数据库
+	session, err := db.Get()
+	if err != nil {
+		return fmt.Errorf("[DB]\t获取数据库连接失败:%s", err.Error())
+	}
+	defer session.Close()
+
 	companies := ([]Company)(l)
+	list := make([]interface{}, 0)
 	for _, company := range companies {
-		lines = append(lines, fmt.Sprintf("%s\t%s\n", company.Code, company.Name))
+		list = append(list, company)
 	}
 
-	return io.WriteLines(storePath(market), lines)
+	collection := session.DB("stock").C("Company")
+
+	//	删除原有记录
+	_, err = collection.RemoveAll(bson.M{"market": market.Name()})
+	if err != nil {
+		return fmt.Errorf("[DB]\t删除原有上市公司发生错误: %s", err.Error())
+	}
+
+	return collection.Insert(list...)
 }
 
 //	从存档读取上市公司列表
 func (l *CompanyList) Load(market Market) error {
-	lines, err := io.ReadLines(storePath(market))
+	//	连接数据库
+	session, err := db.Get()
 	if err != nil {
-		return err
+		return fmt.Errorf("[DB]\t获取数据库连接失败:%s", err.Error())
 	}
+	defer session.Close()
 
-	companies := make([]Company, 0)
-	for _, line := range lines {
-		parts := strings.Split(line, "\t")
-		if len(parts) != 2 {
-			return errors.New("错误的上市公司列表格式")
-		}
-
-		companies = append(companies, Company{Code: parts[0], Name: parts[1]})
+	var companies []Company
+	err = session.DB("stock").C("Company").Find(bson.M{"market": market.Name()}).Sort("code").All(&companies)
+	if err != nil {
+		return fmt.Errorf("[DB]\t查询上市公司发生错误: %s", err.Error())
 	}
 
 	cl := CompanyList(companies)
