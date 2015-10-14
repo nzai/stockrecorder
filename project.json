@@ -1,4 +1,3 @@
 {
-	"DataDir": "c:\\data",
 	"MongoUrl": "mongodb://localhost"
 }
