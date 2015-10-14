@@ -3,7 +3,6 @@ package task
 import (
 	"log"
 
-//	"github.com/nzai/stockrecorder/analyse"
 	"github.com/nzai/stockrecorder/market"
 )
 
@@ -20,15 +19,12 @@ func StartTasks() error {
 		//	香港股市
 		market.Add(market.HongKong{})
 
-		market.Monitor()
+		//	启动监视
+		err := market.Monitor()
+		if err != nil {
+			log.Printf("启动监视任务时发生错误: %s", err.Error())
+		}
 	}()
-
-//	go func() {
-//		log.Print("启动分析任务")
-		
-//		//	分析历史数据
-//		analyse.AnalyseHistory()
-//	}()
 
 	return nil
 }
