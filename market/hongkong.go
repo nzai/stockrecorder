@@ -61,7 +61,7 @@ func (m HongKong) parseHtml(html string) ([]Company, error) {
 
 	companies := make([]Company, 0)
 	for _, section := range group {
-		companies = append(companies, Company{Code: section[1], Name: section[3]})
+		companies = append(companies, Company{Market: m.Name(), Code: section[1], Name: section[3]})
 	}
 
 	if len(companies) == 0 {

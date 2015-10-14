@@ -104,7 +104,7 @@ func (m China) parseShanghaiJson(json string) ([]Company, error) {
 
 	companies := make([]Company, 0)
 	for _, section := range group {
-		companies = append(companies, Company{Code: section[2], Name: section[1]})
+		companies = append(companies, Company{Market: m.Name(), Code: section[2], Name: section[1]})
 	}
 
 	if len(companies) == 0 {
@@ -155,7 +155,7 @@ func (m China) parseShenzhenHtml(html string) ([]Company, error) {
 
 	companies := make([]Company, 0)
 	for _, section := range group {
-		companies = append(companies, Company{Code: section[1], Name: section[2]})
+		companies = append(companies, Company{Market: m.Name(), Code: section[1], Name: section[2]})
 	}
 
 	if len(companies) == 0 {

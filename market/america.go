@@ -71,7 +71,7 @@ func (m America) parseCSV(content string) ([]Company, error) {
 			return nil, fmt.Errorf("错误的美股上市公司CSV格式:%v", parts)
 		}
 
-		companies = append(companies, Company{Code: strings.Trim(parts[0], " "), Name: strings.Trim(parts[1], " ")})
+		companies = append(companies, Company{Market: m.Name(), Code: strings.Trim(parts[0], " "), Name: strings.Trim(parts[1], " ")})
 	}
 
 	return companies, nil
