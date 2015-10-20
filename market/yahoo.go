@@ -147,7 +147,7 @@ func DownloadCompanyDaily(marketName, companyCode, queryCode string, day time.Ti
 	raw := Raw60{
 		Market:  marketName,
 		Code:    companyCode,
-		Date:    day,
+		Date:    day.UTC(),
 		Json:    content,
 		Status:  0,
 		Message: ""}
