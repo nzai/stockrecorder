@@ -15,8 +15,8 @@ const (
 )
 
 type Config struct {
-	RootDir  string
-	MongoUrl string
+	RootDir string
+	DataDir string
 }
 
 //	当前系统配置
@@ -47,6 +47,15 @@ func SetRootDir(root string) error {
 
 	if configValue == nil {
 		return fmt.Errorf("配置文件错误")
+	}
+
+	//	数据目录不存在就创建
+	_, err = os.Stat(configValue.DataDir)
+	if os.IsNotExist(err) {
+		err = os.Mkdir(configValue.DataDir, 0x644)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
