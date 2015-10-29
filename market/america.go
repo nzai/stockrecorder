@@ -79,5 +79,5 @@ func (m America) parseCSV(content string) ([]Company, error) {
 
 //	抓取
 func (m America) Crawl(market Market, company Company, day time.Time) error {
-	return DownloadCompanyDaily(market.Name(), company.Code, company.Code, day)
+	return DownloadCompanyDaily(market, company.Code, company.Code, day)
 }

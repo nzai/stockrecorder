@@ -182,5 +182,5 @@ func (m China) Crawl(market Market, company Company, day time.Time) error {
 		suffix = "SS"
 	}
 
-	return DownloadCompanyDaily(market.Name(), company.Code, company.Code+"."+suffix, day)
+	return DownloadCompanyDaily(market, company.Code, company.Code+"."+suffix, day)
 }
