@@ -2,9 +2,11 @@ package market
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 
-	"github.com/nzai/stockrecorder/db"
-	"gopkg.in/mgo.v2/bson"
+	"github.com/nzai/stockrecorder/config"
+	"github.com/nzai/stockrecorder/io"
 )
 
 const (
@@ -34,43 +36,34 @@ func (l CompanyList) Less(i, j int) bool {
 //	保存上市公司列表到文件
 func (l CompanyList) Save(market Market) error {
 
-	//	连接数据库
-	session, err := db.Get()
-	if err != nil {
-		return fmt.Errorf("[DB]\t获取数据库连接失败:%s", err.Error())
-	}
-	defer session.Close()
-
+	lines := make([]string, 0)
 	companies := ([]Company)(l)
-	list := make([]interface{}, 0)
 	for _, company := range companies {
-		list = append(list, company)
+		lines = append(lines, fmt.Sprintf("%s\t%s", company.Code, company.Name))
 	}
 
-	collection := session.DB("stock").C("Company")
-
-	//	删除原有记录
-	_, err = collection.RemoveAll(bson.M{"market": market.Name()})
-	if err != nil {
-		return fmt.Errorf("[DB]\t删除原有上市公司发生错误: %s", err.Error())
-	}
-
-	return collection.Insert(list...)
+	return io.WriteLines(filepath.Join(config.Get().DataDir, market.Name(), companiesFileName), lines)
 }
 
 //	从存档读取上市公司列表
 func (l *CompanyList) Load(market Market) error {
-	//	连接数据库
-	session, err := db.Get()
-	if err != nil {
-		return fmt.Errorf("[DB]\t获取数据库连接失败:%s", err.Error())
-	}
-	defer session.Close()
 
-	var companies []Company
-	err = session.DB("stock").C("Company").Find(bson.M{"market": market.Name()}).Sort("code").All(&companies)
+	lines, err := io.ReadLines(filepath.Join(config.Get().DataDir, market.Name(), companiesFileName))
 	if err != nil {
-		return fmt.Errorf("[DB]\t查询上市公司发生错误: %s", err.Error())
+		return err
+	}
+
+	companies := make([]Company, 0)
+	for _, line := range lines {
+		parts := strings.Split(line, "\t")
+		if len(parts) != 2 {
+			return fmt.Errorf("[%s]\t上市公司文件格式有错误: %s", market.Name(), line)
+		}
+
+		companies = append(companies, Company{
+			Market: market.Name(),
+			Code:   parts[0],
+			Name:   parts[1]})
 	}
 
 	cl := CompanyList(companies)
