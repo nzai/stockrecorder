@@ -27,7 +27,10 @@ type Market interface {
 	Crawl(market Market, company Company, day time.Time) error
 }
 
-var markets = []Market{}
+var (
+	markets                       = []Market{}
+	marketOffset map[string]int64 = make(map[string]int64)
+)
 
 //	添加市场
 func Add(market Market) {
@@ -40,18 +43,29 @@ func Add(market Market) {
 func Monitor() error {
 	log.Print("启动监视")
 
-	//	查询已经保存的Raw60
-	err := loadSavedRaw60()
-	if err != nil {
-		return fmt.Errorf("查询已经保存的Raw60失败:%s", err.Error())
-	}
-
 	for _, m := range markets {
+
+		//	本地时间
+		now := time.Now()
+		_, offsetLocal := now.Zone()
+
+		//	获取市场所在时区
+		location, err := time.LoadLocation(m.Timezone())
+		if err != nil {
+			return err
+		}
+
+		//	市场所处时区当前时间
+		marketNow := now.In(location)
+		_, offsetMarket := marketNow.Zone()
+
+		//	计算TimeZoneOffset
+		marketOffset[m.Name()] = int64(offsetMarket - offsetLocal)
 
 		//	启动每日定时任务
 		go func(market Market) {
 			//	所处时区距明日0点的间隔
-			now := locationNow(market)
+			now := marketow(market)
 			du := locationYesterdayZero(market).Add(time.Hour * 48).Sub(now)
 
 			log.Printf("[%s]\t定时任务已启动，将于%s后激活首次任务", market.Name(), du.String())
@@ -77,11 +91,11 @@ func Monitor() error {
 	return nil
 }
 
-//	所处时区当前时间
-func locationNow(market Market) time.Time {
+//	市场所处时区当前时间
+func marketow(market Market) time.Time {
 	now := time.Now()
 
-	//	获取市场所在时区的今天0点
+	//	获取市场所在时区
 	location, err := time.LoadLocation(market.Timezone())
 	if err != nil {
 		return now
@@ -92,7 +106,7 @@ func locationNow(market Market) time.Time {
 
 //	昨天0点
 func locationYesterdayZero(market Market) time.Time {
-	now := locationNow(market)
+	now := marketow(market)
 	year, month, day := now.Add(-time.Hour * 24).Date()
 
 	return time.Date(year, month, day, 0, 0, 0, 0, now.Location())
