@@ -1,138 +1,107 @@
 package market
 
 import (
+	"encoding/json"
 	"fmt"
-	"log"
-	"strconv"
+	"os"
+	"path/filepath"
 	"time"
 
-	"github.com/nzai/stockrecorder/db"
+	"github.com/nzai/stockrecorder/config"
 	"github.com/nzai/stockrecorder/io"
-	"gopkg.in/mgo.v2/bson"
 )
 
-type Raw60 struct {
-	Code    string
-	Market  string
-	Date    time.Time
-	Json    string
-	Status  int
-	Message string
+type YahooJson struct {
+	Chart YahooChart `json:"chart"`
 }
 
-var (
-	//	存储队列
-	saveQueue chan Raw60      = nil
-	dict      map[string]bool = nil
-)
-
-//	载入保存过的Raw60
-func loadSavedRaw60() error {
-	//	连接数据库
-	session, err := db.Get()
-	if err != nil {
-		return fmt.Errorf("[DB]\t获取数据库连接失败:%s", err.Error())
-	}
-	defer session.Close()
-
-	//	获取所有Raw
-	var raws []Raw60
-	err = session.DB("stock").C("Raw60").Find(nil).Select(bson.M{"market": 1, "code": 1, "date": 1}).All(&raws)
-	if err != nil {
-		return fmt.Errorf("[DB]\t获取Raw60失败:%s", err.Error())
-	}
-
-	saveQueue = make(chan Raw60)
-	dict = make(map[string]bool)
-	for _, raw := range raws {
-		addDict(raw)
-	}
-
-	log.Printf("[DB]\t数据库中已经保存了%d条Raw60记录", len(raws))
-
-	//	保存协程
-	go saveRaw60()
-
-	return nil
+type YahooChart struct {
+	Result []YahooResult `json:"result"`
+	Err    *YahooError   `json:"error"`
 }
 
-//	添加到字典
-func addDict(raw Raw60) {
-	dict[raw.Market+raw.Code+strconv.FormatInt(raw.Date.Unix(), 10)] = true
+type YahooError struct {
+	Code        string `json:"code"`
+	Description string `json:"description"`
 }
 
-//	以队列的方式保存到数据库
-func saveRaw60() {
-	session, err := db.Get()
-	if err != nil {
-		log.Printf("[DB]\t获取数据库连接失败:%s", err.Error())
-		return
-	}
-	defer session.Close()
-
-	collection := session.DB("stock").C("Raw60")
-	for {
-		raw := <-saveQueue
-		//	所有新增的记录都是未处理状态
-		raw.Status = 0
-
-		rawlist := make([]interface{}, 0)
-		rawlist = append(rawlist, raw)
-
-		//	如果队列长度超过1，就批量新增
-		queueLength := len(saveQueue)
-		if queueLength > 0 {
-			//	读取队列
-			for index := 0; index < queueLength; index++ {
-				raw := <-saveQueue
-				//	所有新增的记录都是未处理状态
-				raw.Status = 0
-
-				rawlist = append(rawlist, raw)
-			}
-		}
-
-		var err error
-		for times := retryTimes - 1; times >= 0; times-- {
-			//	保存到数据库
-			err = collection.Insert(rawlist...)
-			if err == nil {
-				break
-			}
-
-			if times > 0 {
-				//	延时
-				time.Sleep(time.Duration(retryIntervalSeconds) * time.Second)
-			}
-		}
-
-		if err != nil {
-			log.Printf("[DB]\t保存[%s %s %s]出错,已经重试%d次,不再重试:%s", raw.Market, raw.Code, raw.Date.Format("2006-01-02 15:04:05"), retryTimes, err.Error())
-		} else {
-			for _, ri := range rawlist {
-				addDict(ri.(Raw60))
-			}
-		}
-	}
+type YahooResult struct {
+	Meta       YahooMeta       `json:"meta"`
+	Timestamp  []int64         `json:"timestamp"`
+	Indicators YahooIndicators `json:"indicators"`
 }
 
-//	判断Raw60是否存在
-func raw60Exists(marketName, companyCode string, date time.Time) bool {
-	_, found := dict[marketName+companyCode+strconv.FormatInt(date.Unix(), 10)]
-	return found
+type YahooMeta struct {
+	Currency             string              `json:"currency"`
+	Symbol               string              `json:"symbol"`
+	ExchangeName         string              `json:"exchangeName"`
+	InstrumentType       string              `json:"instrumentType"`
+	FirstTradeDate       int64               `json:"firstTradeDate"`
+	GMTOffset            int                 `json:"gmtoffset"`
+	Timezone             string              `json:"timezone"`
+	PreviousClose        float32             `json:"previousClose"`
+	Scale                int                 `json:"scale"`
+	CurrentTradingPeriod YahooTradingPeroid  `json:"currentTradingPeriod"`
+	TradingPeriods       YahooTradingPeroids `json:"tradingPeriods"`
+	DataGranularity      string              `json:"dataGranularity"`
+	ValidRanges          []string            `json:"validRanges"`
+}
+
+type YahooTradingPeroid struct {
+	Pre     YahooTradingPeroidSection `json:"pre"`
+	Regular YahooTradingPeroidSection `json:"regular"`
+	Post    YahooTradingPeroidSection `json:"post"`
+}
+
+type YahooTradingPeroids struct {
+	Pres     [][]YahooTradingPeroidSection `json:"pre"`
+	Regulars [][]YahooTradingPeroidSection `json:"regular"`
+	Posts    [][]YahooTradingPeroidSection `json:"post"`
+}
+
+type YahooTradingPeroidSection struct {
+	Timezone  string `json:"timezone"`
+	Start     int64  `json:"start"`
+	End       int64  `json:"end"`
+	GMTOffset int    `json:"gmtoffset"`
+}
+
+type YahooIndicators struct {
+	Quotes []YahooQuote `json:"quote"`
+}
+
+type YahooQuote struct {
+	Open   []float32 `json:"open"`
+	Close  []float32 `json:"close"`
+	High   []float32 `json:"high"`
+	Low    []float32 `json:"low"`
+	Volume []int64   `json:"volume"`
+}
+
+type Peroid60 struct {
+	Code   string
+	Market string
+	Start  string
+	End    string
+	Open   float32
+	Close  float32
+	High   float32
+	Low    float32
+	Volume int64
 }
 
 //	从雅虎财经获取上市公司分时数据
-func DownloadCompanyDaily(marketName, companyCode, queryCode string, day time.Time) error {
+func DownloadCompanyDaily(market Market, code, queryCode string, date time.Time) error {
 
-	//	检查数据库是否解析过,解析过的不再重复解析
-	found := raw60Exists(marketName, companyCode, day)
-	if found {
+	//	检查是否解析过,解析过的不再重复解析
+	filePath := filepath.Join(config.Get().DataDir, market.Name(), code, fmt.Sprintf("%s_raw60.txt", date.Format("20060102")))
+	_, err := os.Stat(filePath)
+	if !os.IsNotExist(err) {
 		return nil
 	}
 
 	//	如果不存在就抓取
-	start := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, day.Location())
+	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 	end := start.Add(time.Hour * 24)
 
 	pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%7Csplit%7Cearn&corsDomain=finance.yahoo.com"
@@ -144,199 +113,135 @@ func DownloadCompanyDaily(marketName, companyCode, queryCode string, day time.Ti
 		return err
 	}
 
-	raw := Raw60{
-		Market:  marketName,
-		Code:    companyCode,
-		Date:    day.UTC(),
-		Json:    content,
-		Status:  0,
-		Message: ""}
+	//	保存原始数据
+	buffer := ([]byte)(content)
+	err = io.WriteBytes(filePath, buffer)
+	if err != nil {
+		return err
+	}
 
-	//	保存(加入保存队列)
-	saveQueue <- raw
+	return processDailyYahooJson(market, code, date, buffer)
+}
+
+//	处理雅虎Json
+func processDailyYahooJson(market Market, code string, date time.Time, buffer []byte) error {
+
+	//	解析Json
+	yj := &YahooJson{}
+	err := json.Unmarshal(buffer, &yj)
+	if err != nil {
+		return fmt.Errorf("解析雅虎Json发生错误: %s", err.Error())
+	}
+
+	//	检查数据
+	err = validateDailyYahooJson(yj)
+	if err != nil {
+		return io.WriteString(filepath.Join(
+			config.Get().DataDir,
+			market.Name(),
+			code,
+			fmt.Sprintf("%s_error.txt", date.Format("20060102"))), err.Error())
+	}
+
+	//	服务所在时区与市场所在时区的时间差(秒)
+	timezoneOffset := marketOffset[market.Name()]
+
+	pre := make([]Peroid60, 0)
+	regular := make([]Peroid60, 0)
+	post := make([]Peroid60, 0)
+
+	periods, quote := yj.Chart.Result[0].Meta.TradingPeriods, yj.Chart.Result[0].Indicators.Quotes[0]
+	for index, ts := range yj.Chart.Result[0].Timestamp {
+
+		p := Peroid60{
+			Code:   code,
+			Market: market.Name(),
+			Start:  time.Unix(ts+timezoneOffset, 0).Format("1504"),
+			End:    time.Unix(ts+timezoneOffset+60, 0).Format("1504"),
+			Open:   quote.Open[index],
+			Close:  quote.Close[index],
+			High:   quote.High[index],
+			Low:    quote.Low[index],
+			Volume: quote.Volume[index]}
+
+		//	Pre, Regular, Post
+		if ts >= periods.Pres[0][0].Start && ts < periods.Pres[0][0].End {
+			pre = append(pre, p)
+		} else if ts >= periods.Regulars[0][0].Start && ts < periods.Regulars[0][0].End {
+			regular = append(regular, p)
+		} else if ts >= periods.Posts[0][0].Start && ts < periods.Posts[0][0].End {
+			post = append(post, p)
+		}
+	}
+
+	//	保存结果到文件
+	fileDir := filepath.Join(config.Get().DataDir, market.Name(), code)
+	dateString := date.Format("20060102")
+
+	//	盘前
+	err = savePeroid60(filepath.Join(fileDir, fmt.Sprintf("%s_pre60.txt", dateString)), pre)
+	if err != nil {
+		return err
+	}
+
+	//	盘中
+	err = savePeroid60(filepath.Join(fileDir, fmt.Sprintf("%s_regular60.txt", dateString)), regular)
+	if err != nil {
+		return err
+	}
+
+	//	盘后
+	err = savePeroid60(filepath.Join(fileDir, fmt.Sprintf("%s_post60.txt", dateString)), post)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
-//type YahooJson struct {
-//	Chart YahooChart `json:"chart"`
-//}
+//	验证雅虎Json
+func validateDailyYahooJson(yj *YahooJson) error {
 
-//type YahooChart struct {
-//	Result []YahooResult `json:"result"`
-//	Err    *YahooError   `json:"error"`
-//}
+	if yj.Chart.Err != nil {
+		return fmt.Errorf("[%s]%s", yj.Chart.Err.Code, yj.Chart.Err.Description)
+	}
 
-//type YahooError struct {
-//	Code        string `json:"code"`
-//	Description string `json:"description"`
-//}
+	if yj.Chart.Result == nil || len(yj.Chart.Result) == 0 {
+		return fmt.Errorf("Result为空")
+	}
 
-//type YahooResult struct {
-//	Meta       YahooMeta       `json:"meta"`
-//	Timestamp  []int64         `json:"timestamp"`
-//	Indicators YahooIndicators `json:"indicators"`
-//}
+	if yj.Chart.Result[0].Indicators.Quotes == nil || len(yj.Chart.Result[0].Indicators.Quotes) == 0 {
+		return fmt.Errorf("Quotes为空")
+	}
 
-//type YahooMeta struct {
-//	Currency             string              `json:"currency"`
-//	Symbol               string              `json:"symbol"`
-//	ExchangeName         string              `json:"exchangeName"`
-//	InstrumentType       string              `json:"instrumentType"`
-//	FirstTradeDate       int64               `json:"firstTradeDate"`
-//	GMTOffset            int                 `json:"gmtoffset"`
-//	Timezone             string              `json:"timezone"`
-//	PreviousClose        float32             `json:"previousClose"`
-//	Scale                int                 `json:"scale"`
-//	CurrentTradingPeriod YahooTradingPeroid  `json:"currentTradingPeriod"`
-//	TradingPeriods       YahooTradingPeroids `json:"tradingPeriods"`
-//	DataGranularity      string              `json:"dataGranularity"`
-//	ValidRanges          []string            `json:"validRanges"`
-//}
+	result, quote := yj.Chart.Result[0], yj.Chart.Result[0].Indicators.Quotes[0]
+	if len(result.Timestamp) != len(quote.Open) ||
+		len(result.Timestamp) != len(quote.Close) ||
+		len(result.Timestamp) != len(quote.High) ||
+		len(result.Timestamp) != len(quote.Low) ||
+		len(result.Timestamp) != len(quote.Volume) {
+		return fmt.Errorf("Quotes数量不正确")
+	}
 
-//type YahooTradingPeroid struct {
-//	Pre     YahooTradingPeroidSection `json:"pre"`
-//	Regular YahooTradingPeroidSection `json:"regular"`
-//	Post    YahooTradingPeroidSection `json:"post"`
-//}
+	if len(result.Meta.TradingPeriods.Pres) == 0 ||
+		len(result.Meta.TradingPeriods.Pres[0]) == 0 ||
+		len(result.Meta.TradingPeriods.Posts) == 0 ||
+		len(result.Meta.TradingPeriods.Posts[0]) == 0 ||
+		len(result.Meta.TradingPeriods.Regulars) == 0 ||
+		len(result.Meta.TradingPeriods.Regulars[0]) == 0 {
+		return fmt.Errorf("TradingPeriods数量不正确")
+	}
 
-//type YahooTradingPeroids struct {
-//	Pres     [][]YahooTradingPeroidSection `json:"pre"`
-//	Regulars [][]YahooTradingPeroidSection `json:"regular"`
-//	Posts    [][]YahooTradingPeroidSection `json:"post"`
-//}
+	return nil
+}
 
-//type YahooTradingPeroidSection struct {
-//	Timezone  string `json:"timezone"`
-//	Start     int64  `json:"start"`
-//	End       int64  `json:"end"`
-//	GMTOffset int    `json:"gmtoffset"`
-//}
+//	保存解析结果到文件
+func savePeroid60(filePath string, peroids []Peroid60) error {
 
-//type YahooIndicators struct {
-//	Quotes []YahooQuote `json:"quote"`
-//}
+	lines := make([]string, 0)
+	for _, p := range peroids {
+		lines = append(lines, fmt.Sprintf("%s\t%s\t%.2f\t%.2f\t%.2f\t%.2f\t%d", p.Start, p.End, p.Open, p.Close, p.High, p.Low, p.Volume))
+	}
 
-//type YahooQuote struct {
-//	Open   []float32 `json:"open"`
-//	Close  []float32 `json:"close"`
-//	High   []float32 `json:"high"`
-//	Low    []float32 `json:"low"`
-//	Volume []int64   `json:"volume"`
-//}
-
-//type Raw60 struct {
-//	Code    string
-//	Market  string
-//	Date    time.Time
-//	Json    string
-//	Status  int
-//	Message string
-//}
-
-////	解析雅虎Json
-//func ParseDailyYahooJson(marketName, companyCode string, date time.Time, buffer []byte) (*db.DailyAnalyzeResult, error) {
-
-//	yj := &YahooJson{}
-//	err := json.Unmarshal(buffer, &yj)
-//	if err != nil {
-//		return nil, fmt.Errorf("解析雅虎Json发生错误: %s", err)
-//	}
-
-//	result := &db.DailyAnalyzeResult{
-//		DailyResult: db.DailyResult{
-//			Code:    companyCode,
-//			Market:  marketName,
-//			Date:    date,
-//			Error:   false,
-//			Message: ""},
-//		Pre:     make([]db.Peroid60, 0),
-//		Regular: make([]db.Peroid60, 0),
-//		Post:    make([]db.Peroid60, 0)}
-
-//	//	检查数据
-//	err = validateDailyYahooJson(yj)
-//	if err != nil {
-//		result.DailyResult.Error = true
-//		result.DailyResult.Message = err.Error()
-
-//		return result, nil
-//	}
-
-//	periods, quote := yj.Chart.Result[0].Meta.TradingPeriods, yj.Chart.Result[0].Indicators.Quotes[0]
-//	for index, ts := range yj.Chart.Result[0].Timestamp {
-
-//		p := db.Peroid60{
-//			Code:   companyCode,
-//			Market: marketName,
-//			Start:  time.Unix(ts, 0),
-//			End:    time.Unix(ts+60, 0),
-//			Open:   quote.Open[index],
-//			Close:  quote.Close[index],
-//			High:   quote.High[index],
-//			Low:    quote.Low[index],
-//			Volume: quote.Volume[index]}
-
-//		//	Pre, Regular, Post
-//		if ts >= periods.Pres[0][0].Start && ts < periods.Pres[0][0].End {
-//			result.Pre = append(result.Pre, p)
-//		} else if ts >= periods.Regulars[0][0].Start && ts < periods.Regulars[0][0].End {
-//			result.Regular = append(result.Regular, p)
-//		} else if ts >= periods.Posts[0][0].Start && ts < periods.Posts[0][0].End {
-//			result.Post = append(result.Regular, p)
-//		}
-//	}
-
-//	return result, nil
-//}
-
-////	验证雅虎Json
-//func validateDailyYahooJson(yj *YahooJson) error {
-
-//	if yj.Chart.Err != nil {
-//		return fmt.Errorf("[%s]%s", yj.Chart.Err.Code, yj.Chart.Err.Description)
-//	}
-
-//	if yj.Chart.Result == nil || len(yj.Chart.Result) == 0 {
-//		return fmt.Errorf("Result为空")
-//	}
-
-//	if yj.Chart.Result[0].Indicators.Quotes == nil || len(yj.Chart.Result[0].Indicators.Quotes) == 0 {
-//		return fmt.Errorf("Quotes为空")
-//	}
-
-//	result, quote := yj.Chart.Result[0], yj.Chart.Result[0].Indicators.Quotes[0]
-//	if len(result.Timestamp) != len(quote.Open) ||
-//		len(result.Timestamp) != len(quote.Close) ||
-//		len(result.Timestamp) != len(quote.High) ||
-//		len(result.Timestamp) != len(quote.Low) ||
-//		len(result.Timestamp) != len(quote.Volume) {
-//		return fmt.Errorf("Quotes数量不正确")
-//	}
-
-//	if len(result.Meta.TradingPeriods.Pres) == 0 ||
-//		len(result.Meta.TradingPeriods.Pres[0]) == 0 ||
-//		len(result.Meta.TradingPeriods.Posts) == 0 ||
-//		len(result.Meta.TradingPeriods.Posts[0]) == 0 ||
-//		len(result.Meta.TradingPeriods.Regulars) == 0 ||
-//		len(result.Meta.TradingPeriods.Regulars[0]) == 0 {
-//		return fmt.Errorf("TradingPeriods数量不正确")
-//	}
-//	return nil
-//}
-
-//	保存到文件
-//func saveDaily(marketName, companyCode string, day time.Time, buffer []byte) error {
-
-//	//	文件保存路径
-//	fileName := fmt.Sprintf("%s_raw.txt", day.Format("20060102"))
-//	filePath := filepath.Join(config.Get().DataDir, marketName, companyCode, fileName)
-
-//	//	不覆盖原文件
-//	_, err := os.Stat(filePath)
-//	if os.IsNotExist(err) {
-//		return io.WriteBytes(filePath, buffer)
-//	}
-
-//	return nil
-//}
+	return io.WriteLines(filePath, lines)
+}
