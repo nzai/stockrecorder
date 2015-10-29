@@ -19,8 +19,8 @@ func WriteLines(filePath string, lines []string) error {
 
 	for _, line := range lines {
 
-		//	将股价写入文件
-		_, err = file.WriteString(line)
+		//	将字符串写入文件
+		_, err = file.WriteString(line + "\n")
 		if err != nil {
 			return err
 		}
