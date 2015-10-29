@@ -33,34 +33,15 @@ func main() {
 		return
 	}
 
-	//	打开日志文件
-	file, err := openLogFile()
-	if err != nil {
-		log.Fatal("打开日志文件错误: ", err)
-		return
-	}
-	defer file.Close()
-
-	//	设置日志输出文件
-	log.SetOutput(file)
-
 	//	启动任务
 	err = task.StartTasks()
 	if err != nil {
 		log.Fatal("启动任务发生错误: ", err)
-		
+
 		return
 	}
 
 	//	阻塞，一直运行
 	channel := make(chan int)
 	<-channel
-}
-
-//	打开日志文件
-func openLogFile() (*os.File, error) {
-	//	日志文件路径
-	logPath := filepath.Join(config.Get().RootDir, logFileName)
-
-	return os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0660)
 }
