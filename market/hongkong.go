@@ -78,5 +78,5 @@ func (m HongKong) Crawl(market Market, company Company, day time.Time) error {
 		queryCode = company.Code + ".HK"
 	}
 
-	return DownloadCompanyDaily(market, company.Code, queryCode, day)
+	return downloadCompanyDaily(market, company.Code, queryCode, day)
 }
