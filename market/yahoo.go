@@ -11,6 +11,50 @@ import (
 	"github.com/nzai/stockrecorder/io"
 )
 
+const (
+	rawSuffix     = "_raw.txt"
+	preSuffix     = "_pre.txt"
+	regularSuffix = "_regular.txt"
+	postSuffix    = "_post.txt"
+	errorSuffix   = "_error.txt"
+)
+
+//	从雅虎财经获取上市公司分时数据
+func downloadCompanyDaily(market Market, code, queryCode string, date time.Time) error {
+
+	//	检查是否解析过,解析过的不再重复解析
+	filePath := filepath.Join(config.Get().DataDir, market.Name(), code, date.Format("20060102")+rawSuffix)
+	_, err := os.Stat(filePath)
+	if !os.IsNotExist(err) {
+		return nil
+	}
+
+	//	如果不存在就抓取
+	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	end := start.Add(time.Hour * 24)
+
+	pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%7Csplit%7Cearn&corsDomain=finance.yahoo.com"
+	url := fmt.Sprintf(pattern, queryCode, end.Unix(), start.Unix())
+
+	//	查询Yahoo财经接口,返回股票分时数据
+	content, err := io.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
+	if err != nil {
+		return err
+	}
+
+	//	保存原始数据
+	buffer := ([]byte)(content)
+	err = io.WriteBytes(filePath, buffer)
+	if err != nil {
+		return err
+	}
+
+	//	加入到处理队列
+	addProcessQueue(filePath)
+
+	return nil
+}
+
 type YahooJson struct {
 	Chart YahooChart `json:"chart"`
 }
@@ -81,8 +125,7 @@ type YahooQuote struct {
 type Peroid60 struct {
 	Code   string
 	Market string
-	Start  string
-	End    string
+	Time   string
 	Open   float32
 	Close  float32
 	High   float32
@@ -90,41 +133,8 @@ type Peroid60 struct {
 	Volume int64
 }
 
-//	从雅虎财经获取上市公司分时数据
-func DownloadCompanyDaily(market Market, code, queryCode string, date time.Time) error {
-
-	//	检查是否解析过,解析过的不再重复解析
-	filePath := filepath.Join(config.Get().DataDir, market.Name(), code, fmt.Sprintf("%s_raw60.txt", date.Format("20060102")))
-	_, err := os.Stat(filePath)
-	if !os.IsNotExist(err) {
-		return nil
-	}
-
-	//	如果不存在就抓取
-	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
-	end := start.Add(time.Hour * 24)
-
-	pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%7Csplit%7Cearn&corsDomain=finance.yahoo.com"
-	url := fmt.Sprintf(pattern, queryCode, end.Unix(), start.Unix())
-
-	//	查询Yahoo财经接口,返回股票分时数据
-	content, err := io.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
-	if err != nil {
-		return err
-	}
-
-	//	保存原始数据
-	buffer := ([]byte)(content)
-	err = io.WriteBytes(filePath, buffer)
-	if err != nil {
-		return err
-	}
-
-	return processDailyYahooJson(market, code, date, buffer)
-}
-
 //	处理雅虎Json
-func processDailyYahooJson(market Market, code string, date time.Time, buffer []byte) error {
+func processDailyYahooJson(market, code string, date time.Time, buffer []byte) error {
 
 	//	解析Json
 	yj := &YahooJson{}
@@ -133,18 +143,18 @@ func processDailyYahooJson(market Market, code string, date time.Time, buffer []
 		return fmt.Errorf("解析雅虎Json发生错误: %s", err.Error())
 	}
 
+	dateString := date.Format("20060102")
+
 	//	检查数据
 	err = validateDailyYahooJson(yj)
 	if err != nil {
-		return io.WriteString(filepath.Join(
-			config.Get().DataDir,
-			market.Name(),
-			code,
-			fmt.Sprintf("%s_error.txt", date.Format("20060102"))), err.Error())
+		return io.WriteString(
+			filepath.Join(config.Get().DataDir, market, code, dateString+errorSuffix),
+			err.Error())
 	}
 
 	//	服务所在时区与市场所在时区的时间差(秒)
-	timezoneOffset := marketOffset[market.Name()]
+	timezoneOffset := marketOffset[market]
 
 	pre := make([]Peroid60, 0)
 	regular := make([]Peroid60, 0)
@@ -155,9 +165,8 @@ func processDailyYahooJson(market Market, code string, date time.Time, buffer []
 
 		p := Peroid60{
 			Code:   code,
-			Market: market.Name(),
-			Start:  time.Unix(ts+timezoneOffset, 0).Format("1504"),
-			End:    time.Unix(ts+timezoneOffset+60, 0).Format("1504"),
+			Market: market,
+			Time:   time.Unix(ts+timezoneOffset, 0).Format("1504"),
 			Open:   quote.Open[index],
 			Close:  quote.Close[index],
 			High:   quote.High[index],
@@ -175,23 +184,22 @@ func processDailyYahooJson(market Market, code string, date time.Time, buffer []
 	}
 
 	//	保存结果到文件
-	fileDir := filepath.Join(config.Get().DataDir, market.Name(), code)
-	dateString := date.Format("20060102")
+	fileDir := filepath.Join(config.Get().DataDir, market, code)
 
 	//	盘前
-	err = savePeroid60(filepath.Join(fileDir, fmt.Sprintf("%s_pre60.txt", dateString)), pre)
+	err = savePeroid60(filepath.Join(fileDir, dateString+preSuffix), pre)
 	if err != nil {
 		return err
 	}
 
 	//	盘中
-	err = savePeroid60(filepath.Join(fileDir, fmt.Sprintf("%s_regular60.txt", dateString)), regular)
+	err = savePeroid60(filepath.Join(fileDir, dateString+regularSuffix), regular)
 	if err != nil {
 		return err
 	}
 
 	//	盘后
-	err = savePeroid60(filepath.Join(fileDir, fmt.Sprintf("%s_post60.txt", dateString)), post)
+	err = savePeroid60(filepath.Join(fileDir, dateString+postSuffix), post)
 	if err != nil {
 		return err
 	}
@@ -240,7 +248,7 @@ func savePeroid60(filePath string, peroids []Peroid60) error {
 
 	lines := make([]string, 0)
 	for _, p := range peroids {
-		lines = append(lines, fmt.Sprintf("%s\t%s\t%.2f\t%.2f\t%.2f\t%.2f\t%d", p.Start, p.End, p.Open, p.Close, p.High, p.Low, p.Volume))
+		lines = append(lines, fmt.Sprintf("%s\t%.3f\t%.3f\t%.3f\t%.3f\t%d", p.Time, p.Open, p.Close, p.High, p.Low, p.Volume))
 	}
 
 	return io.WriteLines(filePath, lines)
