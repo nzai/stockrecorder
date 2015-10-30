@@ -6,11 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/nzai/stockrecorder/config"
-	"github.com/nzai/stockrecorder/task"
-)
-
-const (
-	logFileName = "main.log"
+	"github.com/nzai/stockrecorder/market"
 )
 
 func main() {
@@ -33,12 +29,19 @@ func main() {
 		return
 	}
 
-	//	启动任务
-	err = task.StartTasks()
-	if err != nil {
-		log.Fatal("启动任务发生错误: ", err)
+	log.Print("启动市场监视任务")
 
-		return
+	//	美国股市
+	market.Add(market.America{})
+	//	中国股市
+	market.Add(market.China{})
+	//	香港股市
+	market.Add(market.HongKong{})
+
+	//	启动监视
+	err = market.Monitor()
+	if err != nil {
+		log.Printf("启动市场监视任务时发生错误: %s", err.Error())
 	}
 
 	//	阻塞，一直运行
