@@ -34,6 +34,7 @@ var (
 
 //	添加市场
 func Add(market Market) {
+
 	markets = append(markets, market)
 
 	log.Printf("市场[%s]已经加入监视列表", market.Name())
@@ -44,7 +45,6 @@ func Monitor() error {
 	log.Print("启动监视")
 
 	for _, m := range markets {
-
 		//	本地时间
 		now := time.Now()
 		_, offsetLocal := now.Zone()
@@ -61,6 +61,13 @@ func Monitor() error {
 
 		//	计算TimeZoneOffset
 		marketOffset[m.Name()] = int64(offsetMarket - offsetLocal)
+	}
+
+	//	启动处理队列
+	go startProcessQueue()
+
+	//	启动抓取任务
+	for _, m := range markets {
 
 		//	启动每日定时任务
 		go func(market Market) {
@@ -128,6 +135,8 @@ func dailyTask(market Market) {
 
 	chanSend := make(chan int, companyGCCount)
 	chanReceive := make(chan int)
+	defer close(chanSend)
+	defer close(chanReceive)
 
 	for _, c := range companies {
 		//	并发抓取
@@ -150,9 +159,6 @@ func dailyTask(market Market) {
 		<-chanReceive
 	}
 
-	close(chanSend)
-	close(chanReceive)
-
 	log.Printf("[%s]\t%s数据获取任务已结束", market.Name(), yesterday.Format("20060102"))
 }
 
@@ -169,6 +175,8 @@ func historyTask(market Market, yesterday time.Time) {
 
 	chanSend := make(chan int, companyGCCount)
 	chanReceive := make(chan int)
+	defer close(chanSend)
+	defer close(chanReceive)
 
 	for _, c := range companies {
 		//	并发抓取
@@ -193,9 +201,6 @@ func historyTask(market Market, yesterday time.Time) {
 	for _, _ = range companies {
 		<-chanReceive
 	}
-
-	close(chanSend)
-	close(chanReceive)
 
 	log.Printf("[%s]\t上市公司的历史分时数据已经抓取结束", market.Name())
 }
