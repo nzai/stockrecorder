@@ -24,18 +24,18 @@ type Market interface {
 	Companies() ([]Company, error)
 
 	//	抓取任务(每日)
-	Crawl(market Market, company Company, day time.Time) error
+	Crawl(companyCode string, day time.Time) error
 }
 
 var (
-	markets                       = []Market{}
+	markets                       = make(map[string]Market)
 	marketOffset map[string]int64 = make(map[string]int64)
 )
 
 //	添加市场
 func Add(market Market) {
 
-	markets = append(markets, market)
+	markets[market.Name()] = market
 
 	log.Printf("市场[%s]已经加入监视列表", market.Name())
 }
@@ -142,7 +142,7 @@ func dailyTask(market Market) {
 		//	并发抓取
 		go func(company Company) {
 
-			err := market.Crawl(market, company, yesterday)
+			err := market.Crawl(company.Code, yesterday)
 			if err != nil {
 				log.Printf("[%s]\t抓取上市公司[%s]数据失败: %s", market.Name(), company.Name, err.Error())
 			}
@@ -184,9 +184,9 @@ func historyTask(market Market, yesterday time.Time) {
 
 			for index := 0; index < lastestDays; index++ {
 				day := yesterday.Add(-time.Hour * 24 * time.Duration(index))
-				err := market.Crawl(market, company, day)
+				err := market.Crawl(company.Code, day)
 				if err != nil {
-					log.Printf("[%s]\t抓取[%s]在%s的分时数据出错:%s", market.Name(), company.Code, day.Format("20060102"), err)
+					log.Printf("[%s]\t抓取[%s]在%s的分时数据出错:%s", market.Name(), company.Code, day.Format("20060102"), err.Error())
 				}
 			}
 
@@ -218,7 +218,7 @@ func getCompanies(market Market) ([]Company, error) {
 		log.Printf("[%s]\t更新上市公司列表失败，尝试从存档读取:%v", market.Name(), err)
 		err = cl.Load(market)
 		if err != nil {
-			return nil, fmt.Errorf("[%s]\t尝试从存档读取上市公司列表-失败:%v", market.Name(), err)
+			return nil, fmt.Errorf("[%s]\t尝试从存档读取上市公司列表-失败:%s", market.Name(), err.Error())
 		}
 
 		companies = cl

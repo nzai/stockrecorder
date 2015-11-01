@@ -175,12 +175,12 @@ var chineseSuffix map[string]string = map[string]string{
 }
 
 //	抓取
-func (m China) Crawl(market Market, company Company, day time.Time) error {
+func (m China) Crawl(code string, day time.Time) error {
 
-	suffix, found := chineseSuffix[company.Code[:1]]
+	suffix, found := chineseSuffix[code[:1]]
 	if !found {
 		suffix = "SS"
 	}
 
-	return downloadCompanyDaily(market, company.Code, company.Code+"."+suffix, day)
+	return downloadCompanyDaily(m, code, code+"."+suffix, day)
 }

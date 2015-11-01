@@ -72,11 +72,11 @@ func (m HongKong) parseHtml(html string) ([]Company, error) {
 }
 
 //	抓取
-func (m HongKong) Crawl(market Market, company Company, day time.Time) error {
-	queryCode := company.Code[1:] + ".HK"
-	if company.Code[:1] != "0" {
-		queryCode = company.Code + ".HK"
+func (m HongKong) Crawl(code string, day time.Time) error {
+	queryCode := code[1:] + ".HK"
+	if code[:1] != "0" {
+		queryCode = code + ".HK"
 	}
 
-	return downloadCompanyDaily(market, company.Code, queryCode, day)
+	return downloadCompanyDaily(m, code, queryCode, day)
 }

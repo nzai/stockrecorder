@@ -108,7 +108,7 @@ func processRaw(filePath string) error {
 	}
 
 	//	从文件名中获取信息
-	marketName, code, date, err := retrieveParams(filePath)
+	market, code, date, err := retrieveParams(filePath)
 	if err != nil {
 		return err
 	}
@@ -119,11 +119,11 @@ func processRaw(filePath string) error {
 		return err
 	}
 
-	return processDailyYahooJson(marketName, code, date, buffer)
+	return processDailyYahooJson(market, code, date, buffer)
 }
 
 //	从文件名中获取信息
-func retrieveParams(path string) (string, string, time.Time, error) {
+func retrieveParams(path string) (Market, string, time.Time, error) {
 
 	other := strings.Replace(path, config.Get().DataDir, "", -1)
 
@@ -134,13 +134,18 @@ func retrieveParams(path string) (string, string, time.Time, error) {
 
 	parts := strings.Split(other, string(os.PathSeparator))
 	if len(parts) != 3 {
-		return "", "", time.Now(), fmt.Errorf("[ProcessQueue]\t不规则的文件名:%s", path)
+		return nil, "", time.Now(), fmt.Errorf("[ProcessQueue]\t不规则的文件名:%s", path)
+	}
+
+	market, found := markets[parts[0]]
+	if !found {
+		return nil, "", time.Now(), fmt.Errorf("[ProcessQueue]\t错误的市场定义:%s", parts[0])
 	}
 
 	day, err := time.Parse("20060102", strings.Replace(parts[2], rawSuffix, "", -1))
 	if err != nil {
-		return "", "", time.Now(), fmt.Errorf("[ProcessQueue]\t不规则的文件名:%s", path)
+		return nil, "", time.Now(), fmt.Errorf("[ProcessQueue]\t不规则的文件名:%s", path)
 	}
 
-	return parts[0], parts[1], day, nil
+	return market, parts[1], day, nil
 }

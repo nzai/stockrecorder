@@ -78,6 +78,6 @@ func (m America) parseCSV(content string) ([]Company, error) {
 }
 
 //	抓取
-func (m America) Crawl(market Market, company Company, day time.Time) error {
-	return downloadCompanyDaily(market, company.Code, company.Code, day)
+func (m America) Crawl(code string, day time.Time) error {
+	return downloadCompanyDaily(m, code, code, day)
 }
