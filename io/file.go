@@ -65,14 +65,14 @@ func openForWrite(filePath string) (*os.File, error) {
 	_, err := os.Stat(fileDir)
 	if os.IsNotExist(err) {
 		//	如果不存在就先创建目录
-		err = os.Mkdir(fileDir, 0x755)
+		err = os.Mkdir(fileDir, 0666)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	//	打开文件
-	return os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0x660)
+	return os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0666)
 }
 
 //	打开文件
@@ -84,7 +84,7 @@ func openForRead(filePath string) (*os.File, error) {
 	}
 
 	//	打开文件
-	return os.OpenFile(filePath, os.O_RDONLY, 0x660)
+	return os.OpenFile(filePath, os.O_RDONLY, 0666)
 }
 
 //	读取文件
