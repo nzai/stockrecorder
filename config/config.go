@@ -10,8 +10,7 @@ import (
 )
 
 const (
-	configFile     = "project.json"
-	defaultDataDir = "data"
+	configFile = "project.json"
 )
 
 type Config struct {
@@ -52,7 +51,7 @@ func SetRootDir(root string) error {
 	//	数据目录不存在就创建
 	_, err = os.Stat(configValue.DataDir)
 	if os.IsNotExist(err) {
-		err = os.Mkdir(configValue.DataDir, 0x644)
+		err = os.Mkdir(configValue.DataDir, 0x666)
 		if err != nil {
 			return err
 		}
