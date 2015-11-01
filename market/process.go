@@ -95,6 +95,18 @@ func processRawFiles() {
 //	处理一个Raw文件
 func processRaw(filePath string) error {
 
+	//	避免重复处理
+	_, err := os.Stat(strings.Replace(filePath, rawSuffix, errorSuffix, -1))
+	if os.IsExist(err) {
+		return nil
+	}
+
+	//	避免重复处理
+	_, err = os.Stat(strings.Replace(filePath, rawSuffix, regularSuffix, -1))
+	if os.IsExist(err) {
+		return nil
+	}
+
 	//	从文件名中获取信息
 	marketName, code, date, err := retrieveParams(filePath)
 	if err != nil {
