@@ -51,7 +51,7 @@ func SetRootDir(root string) error {
 	//	数据目录不存在就创建
 	_, err = os.Stat(configValue.DataDir)
 	if os.IsNotExist(err) {
-		err = os.Mkdir(configValue.DataDir, 0x664)
+		err = os.Mkdir(configValue.DataDir, 0x755)
 		if err != nil {
 			return err
 		}
