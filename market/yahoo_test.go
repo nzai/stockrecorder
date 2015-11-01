@@ -1,6 +1,8 @@
 package market
 
 import (
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,5 +43,19 @@ func TestProcessRaw(t *testing.T) {
 	err = processDailyYahooJson(market, code, date, buffer)
 	if err != nil {
 		t.Error(err)
+	}
+}
+
+func TestReplace(t *testing.T) {
+	path := `c:\data\America\AAOI\20150826_raw.txt`
+	regular := strings.Replace(path, rawSuffix, regularSuffix, -1)
+	t.Log(strings.Replace(path, rawSuffix, errorSuffix, -1))
+	t.Log(regular)
+
+	_, err := os.Stat(regular)
+	if err == nil || os.IsExist(err) {
+		t.Log("Exists")
+	} else {
+		t.Log("Not Exists")
 	}
 }

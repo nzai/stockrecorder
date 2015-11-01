@@ -1,10 +1,9 @@
 package market
 
 import (
-	"log"
 	"encoding/json"
 	"fmt"
-	"os"
+	"log"
 	"path/filepath"
 	"time"
 
@@ -25,8 +24,7 @@ func downloadCompanyDaily(market Market, code, queryCode string, date time.Time)
 
 	//	检查是否解析过,解析过的不再重复解析
 	filePath := filepath.Join(config.Get().DataDir, market.Name(), code, date.Format("20060102")+rawSuffix)
-	_, err := os.Stat(filePath)
-	if os.IsExist(err) {
+	if io.FileExists(filePath) {
 		return nil
 	}
 
@@ -142,20 +140,20 @@ func processDailyYahooJson(market Market, code string, date time.Time, buffer []
 	err := json.Unmarshal(buffer, &yj)
 	if err != nil {
 		//	重新下载覆盖出错的Raw文件,重新解析
-		go func(_market Market, _code string, _date time.Time){
-			
+		go func(_market Market, _code string, _date time.Time) {
+
 			//	超过指定期限的就放弃下载解析了
 			d := time.Now().Sub(_date)
-			if d.Hours() > lastestDays * 24 {
+			if d.Hours() > lastestDays*24 {
 				return
 			}
-		
+
 			err = _market.Crawl(_code, _date)
 			if err != nil {
-				log.Printf("[%s]\t抓取[%s]在%s的分时数据出错:%s", _market, _code, _date.Format("20060102"), err.Error())
+				log.Printf("[%s]\t抓取[%s]在%s的分时数据出错:%s", _market.Name(), _code, _date.Format("20060102"), err.Error())
 			}
 		}(market, code, date)
-		
+
 		return fmt.Errorf("解析雅虎Json发生错误，已经启动重新下载: %s", err.Error())
 	}
 

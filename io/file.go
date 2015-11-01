@@ -127,3 +127,9 @@ func ReadAllString(filePath string) (string, error) {
 
 	return string(buffer), nil
 }
+
+//	判断文件是否存在
+func FileExists(filePath string) bool {
+	_, err := os.Stat(filePath)
+	return err == nil || os.IsExist(err)
+}
