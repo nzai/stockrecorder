@@ -25,7 +25,7 @@ func downloadCompanyDaily(market Market, code, queryCode string, date time.Time)
 	//	检查是否解析过,解析过的不再重复解析
 	filePath := filepath.Join(config.Get().DataDir, market.Name(), code, date.Format("20060102")+rawSuffix)
 	_, err := os.Stat(filePath)
-	if !os.IsNotExist(err) {
+	if os.IsExist(err) {
 		return nil
 	}
 
