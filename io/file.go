@@ -72,7 +72,7 @@ func openForWrite(filePath string) (*os.File, error) {
 	}
 
 	//	打开文件
-	return os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0x664)
+	return os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0x660)
 }
 
 //	打开文件
@@ -84,7 +84,7 @@ func openForRead(filePath string) (*os.File, error) {
 	}
 
 	//	打开文件
-	return os.OpenFile(filePath, os.O_RDONLY, 0x664)
+	return os.OpenFile(filePath, os.O_RDONLY, 0x660)
 }
 
 //	读取文件
