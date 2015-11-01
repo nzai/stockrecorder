@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/nzai/stockrecorder/config"
@@ -17,6 +19,7 @@ const (
 	regularSuffix = "_regular.txt"
 	postSuffix    = "_post.txt"
 	errorSuffix   = "_error.txt"
+	invalidSuffix = "_invalid.txt"
 )
 
 //	从雅虎财经获取上市公司分时数据
@@ -142,12 +145,27 @@ func processDailyYahooJson(market Market, code string, date time.Time, buffer []
 		//	重新下载覆盖出错的Raw文件,重新解析
 		go func(_market Market, _code string, _date time.Time) {
 
-			//	超过指定期限的就放弃下载解析了
+			//	超过指定期限的就放弃
 			d := time.Now().Sub(_date)
 			if d.Hours() > lastestDays*24 {
 				return
 			}
 
+			filePath := filepath.Join(config.Get().DataDir, market.Name(), code, date.Format("20060102")+rawSuffix)
+			invalidPath := strings.Replace(filePath, rawSuffix, invalidSuffix, -1)
+
+			//	通过是否存在invalid文件来判断是否是第二次解析失败，如果是则放弃
+			if io.FileExists(invalidPath) {
+				return
+			}
+
+			//	将文件改名，以便重新下载分析
+			err = os.Rename(filePath, invalidPath)
+			if err != nil {
+				log.Printf("[%s]\t将[%s]在%s的分时数据改为Invalid文件出错:%s", _market.Name(), _code, _date.Format("20060102"), err.Error())
+			}
+
+			//	重新抓取
 			err = _market.Crawl(_code, _date)
 			if err != nil {
 				log.Printf("[%s]\t抓取[%s]在%s的分时数据出错:%s", _market.Name(), _code, _date.Format("20060102"), err.Error())
