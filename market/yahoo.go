@@ -1,6 +1,7 @@
 package market
 
 import (
+	"log"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -134,13 +135,28 @@ type Peroid60 struct {
 }
 
 //	处理雅虎Json
-func processDailyYahooJson(market, code string, date time.Time, buffer []byte) error {
+func processDailyYahooJson(market Market, code string, date time.Time, buffer []byte) error {
 
 	//	解析Json
 	yj := &YahooJson{}
 	err := json.Unmarshal(buffer, &yj)
 	if err != nil {
-		return fmt.Errorf("解析雅虎Json发生错误: %s", err.Error())
+		//	重新下载覆盖出错的Raw文件,重新解析
+		go func(_market Market, _code string, _date time.Time){
+			
+			//	超过指定期限的就放弃下载解析了
+			d := time.Now().Sub(_date)
+			if d.Hours() > lastestDays * 24 {
+				return
+			}
+		
+			err = _market.Crawl(_code, _date)
+			if err != nil {
+				log.Printf("[%s]\t抓取[%s]在%s的分时数据出错:%s", _market, _code, _date.Format("20060102"), err.Error())
+			}
+		}(market, code, date)
+		
+		return fmt.Errorf("解析雅虎Json发生错误，已经启动重新下载: %s", err.Error())
 	}
 
 	dateString := date.Format("20060102")
@@ -149,12 +165,12 @@ func processDailyYahooJson(market, code string, date time.Time, buffer []byte) e
 	err = validateDailyYahooJson(yj)
 	if err != nil {
 		return io.WriteString(
-			filepath.Join(config.Get().DataDir, market, code, dateString+errorSuffix),
+			filepath.Join(config.Get().DataDir, market.Name(), code, dateString+errorSuffix),
 			err.Error())
 	}
 
 	//	服务所在时区与市场所在时区的时间差(秒)
-	timezoneOffset := marketOffset[market]
+	timezoneOffset := marketOffset[market.Name()]
 
 	pre := make([]Peroid60, 0)
 	regular := make([]Peroid60, 0)
@@ -165,7 +181,7 @@ func processDailyYahooJson(market, code string, date time.Time, buffer []byte) e
 
 		p := Peroid60{
 			Code:   code,
-			Market: market,
+			Market: market.Name(),
 			Time:   time.Unix(ts+timezoneOffset, 0).Format("1504"),
 			Open:   quote.Open[index],
 			Close:  quote.Close[index],
@@ -184,7 +200,7 @@ func processDailyYahooJson(market, code string, date time.Time, buffer []byte) e
 	}
 
 	//	保存结果到文件
-	fileDir := filepath.Join(config.Get().DataDir, market, code)
+	fileDir := filepath.Join(config.Get().DataDir, market.Name(), code)
 
 	//	盘前
 	err = savePeroid60(filepath.Join(fileDir, dateString+preSuffix), pre)
