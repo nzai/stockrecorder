@@ -49,8 +49,8 @@ func searchUnprocessedRawFiles() (int, error) {
 		if strings.HasSuffix(path, rawSuffix) {
 
 			//	是否有error或regular文件
-			if io.FileExists(strings.Replace(path, rawSuffix, errorSuffix, -1)) ||
-				io.FileExists(strings.Replace(path, rawSuffix, regularSuffix, -1)) {
+			if io.IsExists(strings.Replace(path, rawSuffix, errorSuffix, -1)) ||
+				io.IsExists(strings.Replace(path, rawSuffix, regularSuffix, -1)) {
 				return err
 			}
 
@@ -96,8 +96,8 @@ func processRawFiles() {
 func processRaw(filePath string) error {
 
 	//	避免重复处理
-	if io.FileExists(strings.Replace(filePath, rawSuffix, errorSuffix, -1)) ||
-		io.FileExists(strings.Replace(filePath, rawSuffix, regularSuffix, -1)) {
+	if io.IsExists(strings.Replace(filePath, rawSuffix, errorSuffix, -1)) ||
+		io.IsExists(strings.Replace(filePath, rawSuffix, regularSuffix, -1)) {
 		return nil
 	}
 
