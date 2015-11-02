@@ -31,18 +31,22 @@ func TestParse60(t *testing.T) {
 func TestProcessRaw(t *testing.T) {
 
 	marketOffset["America"] = -43200
+	markets["America"] = America{}
 
 	path := `c:\data\America\ABEV\20151030_raw.txt`
 	buffer, err := io.ReadAllBytes(path)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
-	market, code, date, err := retrieveParams(path)
-	t.Logf("market:%s\tcode:%s\tdate:%s", market, code, date.Format("20060102"))
+	market, code, date, err := retrieveRawParams(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("market:%s\tcode:%s\tdate:%s", market.Name(), code, date.Format("20060102"))
 
 	err = processDailyYahooJson(market, code, date, buffer)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 }
 

@@ -4,30 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
-	"github.com/nzai/stockrecorder/config"
 	"github.com/nzai/stockrecorder/io"
-)
-
-const (
-	rawSuffix     = "_raw.txt"
-	preSuffix     = "_pre.txt"
-	regularSuffix = "_regular.txt"
-	postSuffix    = "_post.txt"
-	errorSuffix   = "_error.txt"
-	invalidSuffix = "_invalid.txt"
 )
 
 //	从雅虎财经获取上市公司分时数据
 func downloadCompanyDaily(market Market, code, queryCode string, date time.Time) error {
 
-	//	检查是否解析过,解析过的不再重复解析
-	filePath := filepath.Join(config.Get().DataDir, market.Name(), code, date.Format("20060102")+rawSuffix)
-	if io.IsExists(filePath) {
+	//	检查是否下载过,下载过的不再重复下载
+	if isDownloaded(market, code, date) {
 		return nil
 	}
 
@@ -45,8 +31,7 @@ func downloadCompanyDaily(market Market, code, queryCode string, date time.Time)
 	}
 
 	//	保存原始数据
-	buffer := ([]byte)(content)
-	err = io.WriteBytes(filePath, buffer)
+	filePath, err := saveRaw(market, code, date, ([]byte)(content))
 	if err != nil {
 		return err
 	}
@@ -124,17 +109,6 @@ type YahooQuote struct {
 	Volume []int64   `json:"volume"`
 }
 
-type Peroid60 struct {
-	Code   string
-	Market string
-	Time   string
-	Open   float32
-	Close  float32
-	High   float32
-	Low    float32
-	Volume int64
-}
-
 //	处理雅虎Json
 func processDailyYahooJson(market Market, code string, date time.Time, buffer []byte) error {
 
@@ -145,22 +119,13 @@ func processDailyYahooJson(market Market, code string, date time.Time, buffer []
 		//	重新下载覆盖出错的Raw文件,重新解析
 		go func(_market Market, _code string, _date time.Time) {
 
-			//	超过指定期限的就放弃
-			d := time.Now().Sub(_date)
-			if d.Hours() > lastestDays*24 {
-				return
-			}
-
-			filePath := filepath.Join(config.Get().DataDir, market.Name(), code, date.Format("20060102")+rawSuffix)
-			invalidPath := strings.Replace(filePath, rawSuffix, invalidSuffix, -1)
-
 			//	通过是否存在invalid文件来判断是否是第二次解析失败，如果是则放弃
-			if io.IsExists(invalidPath) {
+			if isInvalid(_market, _code, _date) {
 				return
 			}
 
-			//	将文件改名，以便重新下载分析
-			err = os.Rename(filePath, invalidPath)
+			//	将文件标为异常
+			err = invalidate(_market, _code, _date)
 			if err != nil {
 				log.Printf("[%s]\t将[%s]在%s的分时数据改为Invalid文件出错:%s", _market.Name(), _code, _date.Format("20060102"), err.Error())
 			}
@@ -175,14 +140,10 @@ func processDailyYahooJson(market Market, code string, date time.Time, buffer []
 		return fmt.Errorf("解析雅虎Json发生错误，已经启动重新下载: %s", err.Error())
 	}
 
-	dateString := date.Format("20060102")
-
 	//	检查数据
 	err = validateDailyYahooJson(yj)
 	if err != nil {
-		return io.WriteString(
-			filepath.Join(config.Get().DataDir, market.Name(), code, dateString+errorSuffix),
-			err.Error())
+		return saveError(market, code, date, err)
 	}
 
 	//	服务所在时区与市场所在时区的时间差(秒)
@@ -215,23 +176,20 @@ func processDailyYahooJson(market Market, code string, date time.Time, buffer []
 		}
 	}
 
-	//	保存结果到文件
-	fileDir := filepath.Join(config.Get().DataDir, market.Name(), code)
-
 	//	盘前
-	err = savePeroid60(filepath.Join(fileDir, dateString+preSuffix), pre)
+	err = savePeroid60(market, code, preSuffix, date, pre)
 	if err != nil {
 		return err
 	}
 
 	//	盘中
-	err = savePeroid60(filepath.Join(fileDir, dateString+regularSuffix), regular)
+	err = savePeroid60(market, code, regularSuffix, date, regular)
 	if err != nil {
 		return err
 	}
 
 	//	盘后
-	err = savePeroid60(filepath.Join(fileDir, dateString+postSuffix), post)
+	err = savePeroid60(market, code, postSuffix, date, post)
 	if err != nil {
 		return err
 	}
@@ -273,15 +231,4 @@ func validateDailyYahooJson(yj *YahooJson) error {
 	}
 
 	return nil
-}
-
-//	保存解析结果到文件
-func savePeroid60(filePath string, peroids []Peroid60) error {
-
-	lines := make([]string, 0)
-	for _, p := range peroids {
-		lines = append(lines, fmt.Sprintf("%s\t%.3f\t%.3f\t%.3f\t%.3f\t%d", p.Time, p.Open, p.Close, p.High, p.Low, p.Volume))
-	}
-
-	return io.WriteLines(filePath, lines)
 }
