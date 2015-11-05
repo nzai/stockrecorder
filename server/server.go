@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/labstack/echo"
-	mw "github.com/labstack/echo/middleware"
+	//	mw "github.com/labstack/echo/middleware"
 	"github.com/nzai/stockrecorder/config"
 )
 
@@ -15,8 +15,8 @@ func Start() {
 	e := echo.New()
 
 	// Middleware
-	e.Use(mw.Logger())
-	e.Use(mw.Recover())
+	//	e.Use(mw.Logger())
+	//	e.Use(mw.Recover())
 
 	//	注册路由
 	registerRoute(e)
