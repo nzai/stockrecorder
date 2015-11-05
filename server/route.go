@@ -49,6 +49,7 @@ func queryPeroid60(c *echo.Context) error {
 	//	查询
 	peroids, err := market.QueryPeroid60(_market, code, _start, _end)
 	if err != nil {
+		log.Printf("[Query]\t查询分时数据发生错误(m=%s c=%s s=%s e=%s):%s", _market, code, start, end, err.Error())
 		return c.JSON(http.StatusInternalServerError, fmt.Sprintf("查询分时数据发生错误:%s", err.Error()))
 	}
 
