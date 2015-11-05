@@ -28,5 +28,5 @@ func TestLoadPeroid60(t *testing.T) {
 		return
 	}
 
-	t.Log(peroids)
+	t.Log(len(peroids))
 }

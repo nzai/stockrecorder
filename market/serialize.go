@@ -148,22 +148,23 @@ func loadPeroid60(market Market, code string, date time.Time) ([]Peroid60, error
 		return nil, err
 	}
 
-	var time string
+	var timeString string
 	var open, _close, high, low float32
 	var volume int64
 
+	dateString := date.Format("20060102")
 	peroids := make([]Peroid60, 0)
 	for _, line := range lines {
 
-		_, err = fmt.Sscanf(line, "%s\t%f\t%f\t%f\t%f\t%d", &time, &open, &_close, &high, &low, &volume)
+		_, err = fmt.Sscanf(line, "%s\t%f\t%f\t%f\t%f\t%d", &timeString, &open, &_close, &high, &low, &volume)
 		if err != nil {
 			return nil, err
 		}
 
 		peroids = append(peroids, Peroid60{
 			Market: market.Name(),
-			Code:   code,
-			Time:   time,
+			Code:   strings.ToUpper(code),
+			Time:   dateString + timeString,
 			Open:   open,
 			Close:  _close,
 			High:   high,
@@ -172,11 +173,4 @@ func loadPeroid60(market Market, code string, date time.Time) ([]Peroid60, error
 	}
 
 	return peroids, nil
-}
-
-func Query(market Market, code string, start, end time.Time) ([]Peroid60, error) {
-	
-
-	// todo
-	return nil, nil
 }
