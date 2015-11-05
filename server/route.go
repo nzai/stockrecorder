@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -31,7 +30,7 @@ func queryPeroid60(c *echo.Context) error {
 	start := c.Query("start")
 	end := c.Query("end")
 
-	log.Printf("m=%s c=%s s=%s e=%s", _market, code, start, end)
+	//	log.Printf("m=%s c=%s s=%s e=%s", _market, code, start, end)
 	if _market == "" || code == "" || start == "" || end == "" {
 		return c.JSON(http.StatusOK, result.Failed("查询参数为空"))
 	}
@@ -50,11 +49,15 @@ func queryPeroid60(c *echo.Context) error {
 	peroids, err := market.QueryPeroid60(_market, code, _start, _end)
 	if err != nil {
 		log.Printf("[Query]\t查询分时数据发生错误(m=%s c=%s s=%s e=%s):%s", _market, code, start, end, err.Error())
-		return c.JSON(http.StatusInternalServerError, fmt.Sprintf("查询分时数据发生错误:%s", err.Error()))
+		return c.JSON(http.StatusOK, result.Failed("查询分时数据发生错误"))
 	}
 
 	resultList := make([][]float32, 0)
 	for _, p := range peroids {
+		if p.Volume == 0 {
+			continue
+		}
+
 		resultList = append(resultList, []float32{p.Open, p.Close, p.High, p.Low, float32(p.Volume)})
 	}
 
