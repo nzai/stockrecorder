@@ -7,6 +7,7 @@ import (
 
 	"github.com/nzai/stockrecorder/config"
 	"github.com/nzai/stockrecorder/market"
+	"github.com/nzai/stockrecorder/server"
 )
 
 func main() {
@@ -44,7 +45,6 @@ func main() {
 		log.Printf("启动市场监视任务时发生错误: %s", err.Error())
 	}
 
-	//	阻塞，一直运行
-	channel := make(chan int)
-	<-channel
+	//	启动http server
+	server.Start()
 }
