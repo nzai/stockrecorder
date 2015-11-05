@@ -1,3 +1,4 @@
 {
-	"DataDir":"c:\\data"
+	"DataDir":"c:\\data",
+	"Port":602
 }

@@ -16,6 +16,7 @@ const (
 type Config struct {
 	RootDir string
 	DataDir string
+	Port    int
 }
 
 //	当前系统配置
