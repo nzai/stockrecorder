@@ -52,5 +52,10 @@ func queryPeroid60(c *echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, fmt.Sprintf("查询分时数据发生错误:%s", err.Error()))
 	}
 
-	return c.JSON(http.StatusOK, result.Create(peroids))
+	resultList := make([][]float32, 0)
+	for _, p := range peroids {
+		resultList = append(resultList, []float32{p.Open, p.Close, p.High, p.Low, float32(p.Volume)})
+	}
+
+	return c.JSON(http.StatusOK, result.Create(resultList))
 }
