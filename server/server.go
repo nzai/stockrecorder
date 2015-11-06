@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/labstack/echo"
-	//	mw "github.com/labstack/echo/middleware"
+	mw "github.com/labstack/echo/middleware"
 	"github.com/nzai/stockrecorder/config"
 )
 
@@ -17,11 +17,12 @@ func Start() {
 	// Middleware
 	//	e.Use(mw.Logger())
 	//	e.Use(mw.Recover())
+	e.Use(mw.Gzip())
 
 	//	注册路由
 	registerRoute(e)
 
-	log.Print("启动Http服务")
+	log.Printf("启动Http服务,端口:%d", config.Get().Port)
 	// Start server
 	e.Run(fmt.Sprintf(":%d", config.Get().Port))
 }
