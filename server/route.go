@@ -15,6 +15,7 @@ import (
 func registerRoute(e *echo.Echo) {
 
 	e.Get("/", welcome)
+	e.Favicon("favicon.ico")
 
 	e.Get("/:market/:code/:start/:end/1m", queryPeroid60)
 }
