@@ -121,6 +121,10 @@ func retrieveRawParams(rawFilePath string) (Market, string, time.Time, error) {
 //	保存分时数据到文件
 func savePeroid60(market Market, code, suffix string, date time.Time, peroids []Peroid60) error {
 
+	if len(peroids) == 0 {
+		return nil
+	}
+	
 	fileName := fmt.Sprintf("%s_%s.txt", date.Format("20060102"), suffix)
 	filePath := filepath.Join(config.Get().DataDir, market.Name(), code, fileName)
 
