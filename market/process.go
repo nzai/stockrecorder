@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	ParseGCCount = 16
+	parseGCCount = 16
 )
 
 var (
@@ -70,7 +70,7 @@ func searchUnprocessedRawFiles() (int, error) {
 //	处理队列中的Raw文件
 func processRawFiles() {
 
-	chanSend := make(chan int, ParseGCCount)
+	chanSend := make(chan int, parseGCCount)
 	defer close(chanSend)
 
 	var path string
