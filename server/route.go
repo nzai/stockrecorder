@@ -61,7 +61,7 @@ func queryPeroid60(c *echo.Context) error {
 			continue
 		}
 
-		resultList = append(resultList, fmt.Sprintf("%s|%.3f|%.3f|%.3f|%.3f|%d", p.Time, p.Open, p.Close, p.High, p.Low, p.Volume))
+		resultList = append(resultList, fmt.Sprintf("%s %.3f %.3f %.3f %.3f %d", p.Time, p.Open, p.Close, p.High, p.Low, p.Volume))
 	}
 
 	return c.JSON(http.StatusOK, result.Create(resultList))
