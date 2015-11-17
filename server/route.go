@@ -1,9 +1,9 @@
 package server
 
 import (
+	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -55,25 +55,13 @@ func queryPeroid60(c *echo.Context) error {
 		return c.JSON(http.StatusOK, result.Failed("查询分时数据发生错误"))
 	}
 
-	resultList := make([][]float32, 0)
+	resultList := make([]string, 0)
 	for _, p := range peroids {
 		if p.Volume == 0 {
 			continue
 		}
 
-		day, err := strconv.Atoi(p.Time[:6])
-		if err != nil {
-			log.Printf("[Query]\t查询分时数据发生错误(m=%s c=%s s=%s e=%s):%s", _market, code, start, end, err.Error())
-			return c.JSON(http.StatusOK, result.Failed("查询分时数据发生错误"))
-		}
-
-		time, err := strconv.Atoi(p.Time[6:])
-		if err != nil {
-			log.Printf("[Query]\t查询分时数据发生错误(m=%s c=%s s=%s e=%s):%s", _market, code, start, end, err.Error())
-			return c.JSON(http.StatusOK, result.Failed("查询分时数据发生错误"))
-		}
-
-		resultList = append(resultList, []float32{float32(day), float32(time), p.Open, p.Close, p.High, p.Low, float32(p.Volume)})
+		resultList = append(resultList, fmt.Sprintf("%s|%.3f|%.3f|%.3f|%.3f|%d", p.Time, p.Open, p.Close, p.High, p.Low, p.Volume))
 	}
 
 	return c.JSON(http.StatusOK, result.Create(resultList))
