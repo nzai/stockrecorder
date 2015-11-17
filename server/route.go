@@ -1,9 +1,10 @@
 package server
 
 import (
-	"strings"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo"
@@ -60,7 +61,19 @@ func queryPeroid60(c *echo.Context) error {
 			continue
 		}
 
-		resultList = append(resultList, []float32{p.Open, p.Close, p.High, p.Low, float32(p.Volume)})
+		day, err := strconv.Atoi(p.Time[:6])
+		if err != nil {
+			log.Printf("[Query]\t查询分时数据发生错误(m=%s c=%s s=%s e=%s):%s", _market, code, start, end, err.Error())
+			return c.JSON(http.StatusOK, result.Failed("查询分时数据发生错误"))
+		}
+
+		time, err := strconv.Atoi(p.Time[6:])
+		if err != nil {
+			log.Printf("[Query]\t查询分时数据发生错误(m=%s c=%s s=%s e=%s):%s", _market, code, start, end, err.Error())
+			return c.JSON(http.StatusOK, result.Failed("查询分时数据发生错误"))
+		}
+
+		resultList = append(resultList, []float32{float32(day), float32(time), p.Open, p.Close, p.High, p.Low, float32(p.Volume)})
 	}
 
 	return c.JSON(http.StatusOK, result.Create(resultList))
