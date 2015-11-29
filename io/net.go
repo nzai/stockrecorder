@@ -26,6 +26,8 @@ func DownloadStringRetry(url string, retryTimes, intervalSeconds int) (string, e
 //	访问网址并返回字符串
 func DownloadStringRefererRetry(url, referer string, retryTimes, intervalSeconds int) (string, error) {
 	var err error
+	client := &http.Client{}
+
 	for times := retryTimes - 1; times >= 0; times-- {
 		//	构造请求
 		request, err := http.NewRequest("GET", url, nil)
@@ -36,7 +38,6 @@ func DownloadStringRefererRetry(url, referer string, retryTimes, intervalSeconds
 			}
 
 			//	发送请求
-			client := &http.Client{}
 			response, err := client.Do(request)
 			if err == nil {
 				defer response.Body.Close()
