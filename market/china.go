@@ -117,7 +117,7 @@ func (m China) parseShanghaiJson(json string) ([]Company, error) {
 //	深圳证券交易所上市公司
 func (m China) shenzhenCompanies() ([]Company, error) {
 	urls := [...]string{
-		"http://www.szse.cn/szseWeb/FrontController.szse?ACTIONID=8&CATALOGID=1110&tab1PAGENUM=1&ENCODE=1&TABKEY=tab1",
+		"http://www.szse.cn/szseWeb/ShowReport.szse?SHOWTYPE=EXCEL&CATALOGID=1110&tab1PAGENUM=1&ENCODE=1&TABKEY=tab1",
 	}
 
 	list := make([]Company, 0)
