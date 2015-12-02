@@ -58,17 +58,28 @@ func WriteBytes(filePath string, buffer []byte) error {
 	return err
 }
 
+//	保证目录存在
+func EnsureDir(dir string) error {
+	if IsExists(dir) {
+		return nil
+	}
+	
+	//	递推
+	err := EnsureDir(filepath.Dir(dir))
+	if err != nil {
+		return err
+	}
+	
+	return os.Mkdir(dir, 0666)
+}
+
 //	打开文件
 func openForWrite(filePath string) (*os.File, error) {
-	//	检查文件所处目录是否存在
-	fileDir := filepath.Dir(filePath)
-	_, err := os.Stat(fileDir)
-	if os.IsNotExist(err) {
-		//	如果不存在就先创建目录
-		err = os.Mkdir(fileDir, 0666)
-		if err != nil {
-			return nil, err
-		}
+
+	//	保证文件所处目录是否存在
+	err := EnsureDir(filepath.Dir(filePath))
+	if err != nil {
+		return nil, err
 	}
 
 	//	打开文件
