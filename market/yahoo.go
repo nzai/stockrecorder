@@ -143,7 +143,7 @@ func processDailyYahooJson(market Market, code string, date time.Time, buffer []
 	//	检查数据
 	err = validateDailyYahooJson(yj)
 	if err != nil {
-		return saveError(market, code, date, err)
+		return saveError(market, code, date)
 	}
 
 	//	服务所在时区与市场所在时区的时间差(秒)
@@ -193,8 +193,9 @@ func processDailyYahooJson(market Market, code string, date time.Time, buffer []
 	if err != nil {
 		return err
 	}
-
-	return nil
+	
+	//	删除raw文件
+	return removeRaw(market, code, date)
 }
 
 //	验证雅虎Json
