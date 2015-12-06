@@ -3,44 +3,10 @@ package market
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
-	"github.com/nzai/stockrecorder/io"
+	"github.com/nzai/go-utility/net"
 )
-
-//	从雅虎财经获取上市公司分时数据
-func downloadCompanyDaily(market Market, code, queryCode string, date time.Time) error {
-
-	//	检查是否下载过,下载过的不再重复下载
-	if isDownloaded(market, code, date) {
-		return nil
-	}
-
-	//	如果不存在就抓取
-	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
-	end := start.Add(time.Hour * 24)
-
-	pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%7Csplit%7Cearn&corsDomain=finance.yahoo.com"
-	url := fmt.Sprintf(pattern, queryCode, end.Unix(), start.Unix())
-
-	//	查询Yahoo财经接口,返回股票分时数据
-	content, err := io.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
-	if err != nil {
-		return err
-	}
-
-	//	保存原始数据
-	filePath, err := saveRaw(market, code, date, ([]byte)(content))
-	if err != nil {
-		return err
-	}
-
-	//	加入到处理队列
-	addProcessQueue(filePath)
-
-	return nil
-}
 
 type YahooJson struct {
 	Chart YahooChart `json:"chart"`
@@ -109,41 +75,53 @@ type YahooQuote struct {
 	Volume []int64   `json:"volume"`
 }
 
+type Peroid60 struct {
+	Market string
+	Code   string
+	Time   time.Time
+	Open   float32
+	Close  float32
+	High   float32
+	Low    float32
+	Volume int64
+}
+
+type ParseResult struct {
+	Success bool
+	Message string
+	Pre     []Peroid60
+	Regular []Peroid60
+	Post    []Peroid60
+}
+
+//	从雅虎财经获取上市公司分时数据
+func downloadCompanyDaily(market Market, code, queryCode string, date time.Time) (string, error) {
+
+	//	如果不存在就抓取
+	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	end := start.Add(time.Hour * 24)
+
+	pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%7Csplit%7Cearn&corsDomain=finance.yahoo.com"
+	url := fmt.Sprintf(pattern, queryCode, end.Unix(), start.Unix())
+
+	//	查询Yahoo财经接口,返回股票分时数据
+	return net.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
+}
+
 //	处理雅虎Json
-func processDailyYahooJson(market Market, code string, date time.Time, buffer []byte) error {
+func processDailyYahooJson(market Market, code string, date time.Time, buffer []byte) (*ParseResult, error) {
 
 	//	解析Json
 	yj := &YahooJson{}
 	err := json.Unmarshal(buffer, &yj)
 	if err != nil {
-		//	重新下载覆盖出错的Raw文件,重新解析
-		go func(_market Market, _code string, _date time.Time) {
-
-			//	通过是否存在invalid文件来判断是否是第二次解析失败，如果是则放弃
-			if isInvalid(_market, _code, _date) {
-				return
-			}
-
-			//	将文件标为异常
-			err = invalidate(_market, _code, _date)
-			if err != nil {
-				log.Printf("[%s]\t将[%s]在%s的分时数据改为Invalid文件出错:%s", _market.Name(), _code, _date.Format("20060102"), err.Error())
-			}
-
-			//	重新抓取
-			err = _market.Crawl(_code, _date)
-			if err != nil {
-				log.Printf("[%s]\t抓取[%s]在%s的分时数据出错:%s", _market.Name(), _code, _date.Format("20060102"), err.Error())
-			}
-		}(market, code, date)
-
-		return fmt.Errorf("解析雅虎Json发生错误，已经启动重新下载: %s", err.Error())
+		return nil, err
 	}
 
 	//	检查数据
 	err = validateDailyYahooJson(yj)
 	if err != nil {
-		return saveError(market, code, date)
+		return &ParseResult{false, err.Error(), nil, nil, nil}, nil
 	}
 
 	//	服务所在时区与市场所在时区的时间差(秒)
@@ -159,12 +137,17 @@ func processDailyYahooJson(market Market, code string, date time.Time, buffer []
 		p := Peroid60{
 			Code:   code,
 			Market: market.Name(),
-			Time:   time.Unix(ts+timezoneOffset, 0).Format("1504"),
+			Time:   time.Unix(ts+timezoneOffset, 0),
 			Open:   quote.Open[index],
 			Close:  quote.Close[index],
 			High:   quote.High[index],
 			Low:    quote.Low[index],
 			Volume: quote.Volume[index]}
+
+		//	如果全为0就忽略
+		if p.Open == 0 && p.Close == 0 && p.High == 0 && p.Low == 0 && p.Volume == 0 {
+			continue
+		}
 
 		//	Pre, Regular, Post
 		if ts >= periods.Pres[0][0].Start && ts < periods.Pres[0][0].End {
@@ -176,26 +159,7 @@ func processDailyYahooJson(market Market, code string, date time.Time, buffer []
 		}
 	}
 
-	//	盘前
-	err = savePeroid60(market, code, preSuffix, date, pre)
-	if err != nil {
-		return err
-	}
-
-	//	盘中
-	err = savePeroid60(market, code, regularSuffix, date, regular)
-	if err != nil {
-		return err
-	}
-
-	//	盘后
-	err = savePeroid60(market, code, postSuffix, date, post)
-	if err != nil {
-		return err
-	}
-	
-	//	删除raw文件
-	return removeRaw(market, code, date)
+	return &ParseResult{true, "", pre, regular, post}, nil
 }
 
 //	验证雅虎Json

@@ -1,8 +1,10 @@
 package market
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -24,7 +26,7 @@ type Market interface {
 	Companies() ([]Company, error)
 
 	//	抓取任务(每日)
-	Crawl(companyCode string, day time.Time) error
+	Crawl(companyCode string, day time.Time) (string, error)
 }
 
 var (
@@ -64,7 +66,7 @@ func Monitor() error {
 	}
 
 	//	启动处理队列
-	go startProcessQueue()
+	//	go startProcessQueue()
 
 	//	启动抓取任务
 	for _, m := range markets {
@@ -134,30 +136,65 @@ func dailyTask(market Market) {
 	}
 
 	chanSend := make(chan int, companyGCCount)
-	chanReceive := make(chan int)
 	defer close(chanSend)
-	defer close(chanReceive)
+
+	var wg sync.WaitGroup
+	wg.Add(len(companies))
 
 	for _, c := range companies {
 		//	并发抓取
 		go func(company Company) {
 
-			err := market.Crawl(company.Code, yesterday)
+			//	打开数据库连接
+			db, err := getDB(market, company.Code)
 			if err != nil {
-				log.Printf("[%s]\t抓取上市公司[%s]数据失败: %s", market.Name(), company.Name, err.Error())
+				log.Printf("[%s]\t打开[%s]的数据库连接时出错:%s", market.Name(), company.Code, err.Error())
+
+				<-chanSend
+				wg.Done()
+
+				return
+			}
+			defer db.Close()
+
+			//	启动事务
+			tx, err := db.Begin()
+			if err != nil {
+				log.Printf("[%s]\t启动[%s]数据库事务时出错:%s", market.Name(), company.Code, err.Error())
+
+				<-chanSend
+				wg.Done()
+
+				return
+			}
+
+			//	抓取
+			err = companyDayTask(tx, market, company, yesterday)
+			if err != nil {
+				log.Printf("[%s]\t抓取[%s]在%s的分时数据出错:%s", market.Name(), company.Code, yesterday.Format("20060102"), err.Error())
+
+				//	回滚事务
+				err = tx.Rollback()
+				if err != nil {
+					log.Printf("[%s]\t回滚[%s]事务时出错:%s", market.Name(), company.Code, err.Error())
+				}
+			} else {
+				//	提交事务
+				err = tx.Commit()
+				if err != nil {
+					log.Printf("[%s]\t提交[%s]事务时出错:%s", market.Name(), company.Code, err.Error())
+				}
 			}
 
 			<-chanSend
-			chanReceive <- 1
+			wg.Done()
 		}(c)
 
 		chanSend <- 1
 	}
 
 	//	阻塞，直到抓取所有
-	for _, _ = range companies {
-		<-chanReceive
-	}
+	wg.Wait()
 
 	log.Printf("[%s]\t%s数据获取任务已结束", market.Name(), yesterday.Format("20060102"))
 }
@@ -174,35 +211,137 @@ func historyTask(market Market, yesterday time.Time) {
 	log.Printf("[%s]\t开始抓取%d家上市公司在%s之前的历史", market.Name(), len(companies), yesterday.Format("20060102"))
 
 	chanSend := make(chan int, companyGCCount)
-	chanReceive := make(chan int)
 	defer close(chanSend)
-	defer close(chanReceive)
+	
+	var wg sync.WaitGroup
+	wg.Add(len(companies))
 
 	for _, c := range companies {
+
 		//	并发抓取
 		go func(company Company) {
 
+			//	打开数据库连接
+			db, err := getDB(market, company.Code)
+			if err != nil {
+				log.Printf("[%s]\t打开[%s]的数据库连接时出错:%s", market.Name(), company.Code, err.Error())
+
+				<-chanSend
+				wg.Done()
+
+				return
+			}
+			defer db.Close()
+
+			//	启动事务
+			tx, err := db.Begin()
+			if err != nil {
+				log.Printf("[%s]\t启动[%s]数据库事务时出错:%s", market.Name(), company.Code, err.Error())
+
+				<-chanSend
+				wg.Done()
+
+				return
+			}
+
 			for index := 0; index < lastestDays; index++ {
 				day := yesterday.Add(-time.Hour * 24 * time.Duration(index))
-				err := market.Crawl(company.Code, day)
+
+				//	抓取
+				err = companyDayTask(tx, market, company, day)
 				if err != nil {
-					log.Printf("[%s]\t抓取[%s]在%s的分时数据出错:%s", market.Name(), company.Code, day.Format("20060102"), err.Error())
+					err = fmt.Errorf("[%s]\t抓取[%s]在%s的分时数据出错:%s", market.Name(), company.Code, day.Format("20060102"), err.Error())
+					break
+				}
+			}
+
+			if err != nil {
+				log.Print(err.Error())
+
+				//	回滚事务
+				err = tx.Rollback()
+				if err != nil {
+					log.Printf("[%s]\t回滚[%s]事务时出错:%s", market.Name(), company.Code, err.Error())
+				}
+			} else {
+				//	提交事务
+				err = tx.Commit()
+				if err != nil {
+					log.Printf("[%s]\t提交[%s]事务时出错:%s", market.Name(), company.Code, err.Error())
 				}
 			}
 
 			<-chanSend
-			chanReceive <- 1
+			wg.Done()
 		}(c)
 
 		chanSend <- 1
 	}
 
 	//	阻塞，直到抓取所有
-	for _, _ = range companies {
-		<-chanReceive
-	}
+	wg.Wait()
 
 	log.Printf("[%s]\t上市公司的历史分时数据已经抓取结束", market.Name())
+}
+
+//	获取上市公司某日数据
+func companyDayTask(tx *sql.Tx, market Market, company Company, day time.Time) error {
+	dayString := day.Format("20060102")
+
+	//	查询是否已经处理过
+	processed, err := isProcessed(tx, day.Format("20060102"))
+	if err != nil {
+		return err
+	}
+
+	//	避免重复处理
+	if processed {
+		return nil
+	}
+
+	//	抓取
+	raw, err := market.Crawl(company.Code, day)
+	if err != nil {
+		return err
+	}
+
+	//	解析
+	result, err := processDailyYahooJson(market, company.Code, day, []byte(raw))
+	if err != nil {
+		return err
+	}
+
+	//	保存处理状态
+	err = saveProcessStatus(tx, dayString, result.Success)
+	if err != nil {
+		return err
+	}
+
+	if !result.Success {
+		//	保存错误信息
+		return saveError(tx, dayString, result.Message)
+	}
+
+	//	保存分时数据
+	// Pre
+	err = savePeroid(tx, "pre", result.Pre)
+	if err != nil {
+		return err
+	}
+
+	// Regular
+	err = savePeroid(tx, "regular", result.Regular)
+	if err != nil {
+		return err
+	}
+
+	// Post
+	err = savePeroid(tx, "post", result.Post)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 //	抓取市场上市公司信息

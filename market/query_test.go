@@ -12,7 +12,7 @@ import (
 func init() {
 
 	//	读取配置文件
-	err := config.SetRootDir(`g:\gohome\src\github.com\nzai\stockrecorder\`)
+	err := config.Init()
 	if err != nil {
 		log.Fatal("读取配置文件发生错误: ", err)
 		return
