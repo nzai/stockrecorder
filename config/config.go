@@ -6,7 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/nzai/stockrecorder/io"
+	"github.com/nzai/go-utility/io"
+	"github.com/nzai/go-utility/path"
 )
 
 const (
@@ -22,14 +23,19 @@ type Config struct {
 //	当前系统配置
 var configValue *Config = nil
 
-//	设置配置文件
-func SetRootDir(root string) error {
+//	初始化配置文件
+func Init() error {
+
+	//	启动目录
+	startupDir, err := path.GetStartupDir()
+	if err != nil {
+		return err
+	}
 
 	//	构造配置文件路径
-	filePath := filepath.Join(root, configFile)
-	_, err := os.Stat(filePath)
-	if os.IsNotExist(err) {
-		return err
+	filePath := filepath.Join(startupDir, configFile)
+	if !io.IsExists(filePath) {
+		return fmt.Errorf("配置文件 %s 不存在", filePath)
 	}
 
 	//	读取文件

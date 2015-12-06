@@ -2,8 +2,6 @@ package main
 
 import (
 	"log"
-	"os"
-	"path/filepath"
 
 	"github.com/nzai/stockrecorder/config"
 	"github.com/nzai/stockrecorder/market"
@@ -20,11 +18,8 @@ func main() {
 		}
 	}()
 
-	//	当前目录
-	rootDir := filepath.Dir(os.Args[0])
-
 	//	读取配置文件
-	err := config.SetRootDir(rootDir)
+	err := config.Init()
 	if err != nil {
 		log.Fatal("读取配置文件错误: ", err)
 		return
