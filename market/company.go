@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/nzai/stockrecorder/config"
-	"github.com/nzai/stockrecorder/io"
+	"github.com/nzai/go-utility/io"
 )
 
 const (
