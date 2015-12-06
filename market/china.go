@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/guotie/gogb2312"
-	"github.com/nzai/stockrecorder/io"
+	"github.com/nzai/go-utility/net"
 )
 
 //	中国证券市场
@@ -78,7 +78,7 @@ func (m China) shanghaiCompanies() ([]Company, error) {
 	for _, url := range urls {
 
 		//	尝试从网络获取实时上市公司列表
-		json, err := io.DownloadStringRefererRetry(url, referer, retryTimes, retryIntervalSeconds)
+		json, err := net.DownloadStringRefererRetry(url, referer, retryTimes, retryIntervalSeconds)
 		if err != nil {
 			return nil, err
 		}
@@ -124,7 +124,7 @@ func (m China) shenzhenCompanies() ([]Company, error) {
 	for _, url := range urls {
 
 		//	尝试从网络获取实时上市公司列表
-		html, err := io.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
+		html, err := net.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +175,7 @@ var chineseSuffix map[string]string = map[string]string{
 }
 
 //	抓取
-func (m China) Crawl(code string, day time.Time) error {
+func (m China) Crawl(code string, day time.Time) (string, error) {
 
 	suffix, found := chineseSuffix[code[:1]]
 	if !found {

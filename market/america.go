@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nzai/stockrecorder/io"
+	"github.com/nzai/go-utility/net"
 )
 
 //	美股市场
@@ -36,7 +36,7 @@ func (m America) Companies() ([]Company, error) {
 	for _, url := range urls {
 
 		//	尝试从网络获取实时上市公司列表
-		csv, err := io.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
+		csv, err := net.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
 		if err != nil {
 			return nil, err
 		}
@@ -84,6 +84,6 @@ func (m America) parseCSV(content string) ([]Company, error) {
 }
 
 //	抓取
-func (m America) Crawl(code string, day time.Time) error {
+func (m America) Crawl(code string, day time.Time) (string, error) {
 	return downloadCompanyDaily(m, code, code, day)
 }

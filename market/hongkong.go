@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/nzai/stockrecorder/io"
+	"github.com/nzai/go-utility/net"
 )
 
 //	香港证券市场
@@ -32,7 +32,7 @@ func (m HongKong) Companies() ([]Company, error) {
 	for _, url := range urls {
 
 		//	尝试从网络获取实时上市公司列表
-		html, err := io.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
+		html, err := net.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
 		if err != nil {
 			return nil, err
 		}
@@ -72,7 +72,7 @@ func (m HongKong) parseHtml(html string) ([]Company, error) {
 }
 
 //	抓取
-func (m HongKong) Crawl(code string, day time.Time) error {
+func (m HongKong) Crawl(code string, day time.Time) (string, error) {
 	queryCode := code[1:] + ".HK"
 	if code[:1] != "0" {
 		queryCode = code + ".HK"
