@@ -89,7 +89,7 @@ func isProcessed(tx *sql.Tx, date string) (bool, error) {
 
 //	保存处理状态
 func saveProcessStatus(tx *sql.Tx, date string, success bool) error {
-	stmt, err := tx.Prepare("insert into process values(?,?)")
+	stmt, err := tx.Prepare("replace into process values(?,?)")
 	if err != nil {
 		return err
 	}
@@ -120,7 +120,7 @@ func savePeroid(tx *sql.Tx, table string, peroid []Peroid60) error {
 		return nil
 	}
 
-	stmt, err := tx.Prepare("insert into " + table + " values(?,?,?,?,?,?)")
+	stmt, err := tx.Prepare("replace into " + table + " values(?,?,?,?,?,?)")
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,7 @@ func savePeroid(tx *sql.Tx, table string, peroid []Peroid60) error {
 //	保存错误信息
 func saveError(tx *sql.Tx, date, message string) error {
 
-	stmt, err := tx.Prepare("insert into error values(?,?)")
+	stmt, err := tx.Prepare("replace into error values(?,?)")
 	if err != nil {
 		return err
 	}
