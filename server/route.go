@@ -1,9 +1,9 @@
 package server
 
 import (
-	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,13 +55,20 @@ func queryPeroid60(c *echo.Context) error {
 		return c.JSON(http.StatusOK, result.Failed("查询分时数据发生错误"))
 	}
 
-	resultList := make([]string, 0)
+	resultList := make([][]int64, 0)
 	for _, p := range peroids {
-		if p.Volume == 0 {
-			continue
+
+		t, err := strconv.ParseInt(p.Time.Format("0601021504"), 10, 64)
+		if err != nil {
+			return err
 		}
 
-		resultList = append(resultList, fmt.Sprintf("%s %.3f %.3f %.3f %.3f %d", p.Time.Format("200601021504"), p.Open, p.Close, p.High, p.Low, p.Volume))
+		resultList = append(resultList, []int64{t,
+			int64(p.Open * 1000),
+			int64(p.Close * 1000),
+			int64(p.High * 1000),
+			int64(p.Low * 1000),
+			p.Volume})
 	}
 
 	return c.JSON(http.StatusOK, result.Create(resultList))
