@@ -65,6 +65,7 @@ func (m America) parseCSV(content string) ([]Company, error) {
 		return nil, err
 	}
 
+	dict := make(map[string]bool, 0)
 	companies := make([]Company, 0)
 	for _, parts := range records[1:] {
 		if len(parts) < 2 {
@@ -74,6 +75,12 @@ func (m America) parseCSV(content string) ([]Company, error) {
 		if strings.Contains(parts[0], "^") {
 			continue
 		}
+
+		//	去重
+		if _, found := dict[parts[0]]; found {
+			continue
+		}
+		dict[parts[0]] = true
 
 		companies = append(companies, Company{Market: m.Name(),
 			Code: strings.Trim(parts[0], " "),

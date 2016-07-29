@@ -69,22 +69,22 @@ func (m China) Companies() ([]Company, error) {
 func (m China) shanghaiCompanies() ([]Company, error) {
 
 	urls := [...]string{
-		"http://query.sse.com.cn/commonQuery.do?isPagination=false&sqlId=COMMON_SSE_ZQPZ_GPLB_MCJS_SSAG_L",
-		"http://query.sse.com.cn/commonQuery.do?isPagination=false&sqlId=COMMON_SSE_ZQPZ_GPLB_MCJS_SSBG_L",
+		"http://query.sse.com.cn/security/stock/downloadStockListFile.do?csrcCode=&stockCode=&areaName=&stockType=1",
+		"http://query.sse.com.cn/security/stock/downloadStockListFile.do?csrcCode=&stockCode=&areaName=&stockType=2",
 	}
-	referer := "http://www.sse.com.cn/assortment/stock/list/name/"
+	referer := "http://www.sse.com.cn/assortment/stock/list/share/"
 
 	list := make([]Company, 0)
 	for _, url := range urls {
 
 		//	尝试从网络获取实时上市公司列表
-		json, err := net.DownloadStringRefererRetry(url, referer, retryTimes, retryIntervalSeconds)
+		text, err := net.DownloadStringRefererRetry(url, referer, retryTimes, retryIntervalSeconds)
 		if err != nil {
 			return nil, err
 		}
 
 		//	解析json
-		companies, err := m.parseShanghaiJson(json)
+		companies, err := m.parseShanghaiJson(text)
 		if err != nil {
 			return nil, err
 		}
@@ -96,19 +96,25 @@ func (m China) shanghaiCompanies() ([]Company, error) {
 }
 
 //	解析上海证券交易所上市公司
-func (m China) parseShanghaiJson(json string) ([]Company, error) {
+func (m China) parseShanghaiJson(text string) ([]Company, error) {
+
+	//	深圳证券交易所的查询结果是GBK编码的，需要转成UTF8
+	text, err, _, _ := gogb2312.ConvertGB2312String(text)
+	if err != nil {
+		return nil, err
+	}
 
 	//  使用正则分析json
-	regex := regexp.MustCompile(`"PRODUCTNAME":"([^"]*?)","PRODUCTID":"(\d{6})"`)
-	group := regex.FindAllStringSubmatch(json, -1)
+	regex := regexp.MustCompile(`(\d{6})	  (\S+)	  \d{6}	  \S+`)
+	group := regex.FindAllStringSubmatch(text, -1)
 
 	companies := make([]Company, 0)
 	for _, section := range group {
-		companies = append(companies, Company{Market: m.Name(), Code: section[2], Name: section[1]})
+		companies = append(companies, Company{Market: m.Name(), Code: section[1], Name: section[2]})
 	}
 
 	if len(companies) == 0 {
-		return nil, fmt.Errorf("错误的上海证券交易所上市公司列表内容:%s", json)
+		return nil, fmt.Errorf("错误的上海证券交易所上市公司列表内容:%s", text)
 	}
 
 	return companies, nil
@@ -150,7 +156,7 @@ func (m China) shenzhenCompanies() ([]Company, error) {
 //	解析深圳证券交易所上市公司
 func (m China) parseShenzhenHtml(html string) ([]Company, error) {
 	//  使用正则分析html
-	regex := regexp.MustCompile(`align='center' >(\d{6})</td><td  class='cls-data-td'  align='center' >([^<]*?)</td>`)
+	regex := regexp.MustCompile(`null align='center' >(\d{6})</td><td  class='cls-data-td' null align='center' >([^<]*?)</td>`)
 	group := regex.FindAllStringSubmatch(html, -1)
 
 	companies := make([]Company, 0)
