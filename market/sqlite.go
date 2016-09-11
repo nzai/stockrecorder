@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/nzai/go-utility/db/sqlite"
-	"github.com/nzai/stockrecorder/config"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -15,7 +14,7 @@ import (
 //	获取数据库连接
 func getDB(market Market, code string) (*sql.DB, error) {
 
-	filePath := filepath.Join(config.Get().DataDir, market.Name(), strings.ToLower(code)+".db")
+	filePath := filepath.Join("config.Get().DataDir", market.Name(), strings.ToLower(code)+".db")
 	db, err := sql.Open("sqlite3", filePath)
 	if err != nil {
 		return nil, err
@@ -34,11 +33,14 @@ func getDB(market Market, code string) (*sql.DB, error) {
 func ensureTables(db *sql.DB) error {
 
 	tables := map[string]string{
-		"process": `CREATE TABLE [process] ([date] CHAR(8) NOT NULL, [success] TINYINT(1) NOT NULL, CONSTRAINT [] PRIMARY KEY ([date]));CREATE INDEX [process_success] ON [process] ([success]);`,
-		"pre":     `CREATE TABLE [pre] ([time] DATETIME NOT NULL, [open] FLOAT(20, 3) NOT NULL, [close] FLOAT(20, 3) NOT NULL, [high] FLOAT(20, 3) NOT NULL, [low] FLOAT(20, 3) NOT NULL, [volume] INTEGER NOT NULL, PRIMARY KEY ([time]));`,
-		"regular": `CREATE TABLE [regular] ([time] DATETIME NOT NULL, [open] FLOAT(20, 3) NOT NULL, [close] FLOAT(20, 3) NOT NULL, [high] FLOAT(20, 3) NOT NULL, [low] FLOAT(20, 3) NOT NULL, [volume] INTEGER NOT NULL, PRIMARY KEY ([time]));`,
-		"post":    `CREATE TABLE [post] ([time] DATETIME NOT NULL, [open] FLOAT(20, 3) NOT NULL, [close] FLOAT(20, 3) NOT NULL, [high] FLOAT(20, 3) NOT NULL, [low] FLOAT(20, 3) NOT NULL, [volume] INTEGER NOT NULL, PRIMARY KEY ([time]));`,
-		"error":   `CREATE TABLE [error] ([date] CHAR(8) NOT NULL, [message] TEXT NOT NULL, PRIMARY KEY ([date]));`}
+		"company":           `CREATE TABLE [company] ([code] VARCHAR(20) NOT NULL, [name] VARCHAR(200) NOT NULL, CONSTRAINT [] PRIMARY KEY ([code]));`,
+		"pre":               `CREATE TABLE [pre] ([code] VARCHAR(20) NOT NULL, [time] DATETIME NOT NULL, [open] FLOAT(20, 2) NOT NULL, [close] FLOAT(20, 2) NOT NULL, [high] FLOAT(20, 2) NOT NULL, [low] FLOAT(20, 2) NOT NULL, [volume] INTEGER NOT NULL);`,
+		"regular":           `CREATE TABLE [regular] ([code] VARCHAR(20) NOT NULL, [time] DATETIME NOT NULL, [open] FLOAT(20, 2) NOT NULL, [close] FLOAT(20, 2) NOT NULL, [high] FLOAT(20, 2) NOT NULL, [low] FLOAT(20, 2) NOT NULL, [volume] INTEGER NOT NULL);`,
+		"post":              `CREATE TABLE [post] ([code] VARCHAR(20) NOT NULL, [time] DATETIME NOT NULL, [open] FLOAT(20, 2) NOT NULL, [close] FLOAT(20, 2) NOT NULL, [high] FLOAT(20, 2) NOT NULL, [low] FLOAT(20, 2) NOT NULL, [volume] INTEGER NOT NULL);`,
+		"post_code_time":    `CREATE INDEX [post_code_time] ON [post] ([code], [time]);`,
+		"pre_code_time":     `CREATE INDEX [pre_code_time] ON [pre] ([code], [time]);`,
+		"regular_code_time": `CREATE INDEX [regular_code_time] ON [regular] ([code], [time]);`,
+	}
 
 	for name, script := range tables {
 		err := ensureTable(db, name, script)
@@ -54,7 +56,7 @@ func ensureTables(db *sql.DB) error {
 func ensureTable(db *sql.DB, tableName, createScript string) error {
 
 	//	判断表是否存在
-	found, err := sqlite.TableExists(db, tableName)
+	found, err := sqlite.IsExists(db, tableName)
 	if err != nil {
 		return err
 	}
@@ -177,7 +179,7 @@ func saveError(tx *sql.Tx, date, message string) error {
 //	从文件读取分时数据
 func loadPeroid(market Market, code string, start, end time.Time, table string) ([]Peroid60, error) {
 
-	filePath := filepath.Join(config.Get().DataDir, market.Name(), strings.ToLower(code)+".db")
+	filePath := filepath.Join("config.Get().DataDir", market.Name(), strings.ToLower(code)+".db")
 	db, err := sql.Open("sqlite3", filePath)
 	if err != nil {
 		return nil, err

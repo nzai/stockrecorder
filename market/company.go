@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nzai/stockrecorder/config"
 	"github.com/nzai/go-utility/io"
 )
 
@@ -42,13 +41,13 @@ func (l CompanyList) Save(market Market) error {
 		lines = append(lines, fmt.Sprintf("%s\t%s", company.Code, company.Name))
 	}
 
-	return io.WriteLines(filepath.Join(config.Get().DataDir, market.Name(), companiesFileName), lines)
+	return io.WriteLines(filepath.Join("config.Get().DataDir", market.Name(), companiesFileName), lines)
 }
 
 //	从存档读取上市公司列表
 func (l *CompanyList) Load(market Market) error {
 
-	lines, err := io.ReadLines(filepath.Join(config.Get().DataDir, market.Name(), companiesFileName))
+	lines, err := io.ReadLines(filepath.Join("config.Get().DataDir", market.Name(), companiesFileName))
 	if err != nil {
 		return err
 	}

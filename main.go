@@ -2,10 +2,10 @@ package main
 
 import (
 	"log"
+	"runtime/debug"
+	"sync"
 
 	"github.com/nzai/stockrecorder/config"
-	"github.com/nzai/stockrecorder/market"
-	"github.com/nzai/stockrecorder/server"
 )
 
 func main() {
@@ -16,30 +16,33 @@ func main() {
 		if err := recover(); err != nil {
 			log.Print("致命错误:", err)
 		}
+		debug.PrintStack()
 	}()
 
 	//	读取配置文件
-	err := config.Init()
+	conf, err := config.Parse()
 	if err != nil {
 		log.Fatal("读取配置文件错误: ", err)
-		return
 	}
 
 	log.Print("启动市场监视任务")
 
-	//	美国股市
-	market.Add(market.America{})
-	//	中国股市
-	market.Add(market.China{})
-	//	香港股市
-	market.Add(market.HongKong{})
+	// //	美国股市
+	// market.Add(market.America{})
+	// //	中国股市
+	// market.Add(market.China{})
+	// //	香港股市
+	// market.Add(market.HongKong{})
 
-	//	启动监视
-	err = market.Monitor()
-	if err != nil {
-		log.Printf("启动市场监视任务时发生错误: %s", err.Error())
-	}
+	// //	启动监视
+	// err = market.Monitor()
+	// if err != nil {
+	// 	log.Printf("启动市场监视任务时发生错误: %s", err.Error())
+	// }
 
-	//	启动http server
-	server.Start()
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	wg.Wait()
+
 }
