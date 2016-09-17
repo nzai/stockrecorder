@@ -22,7 +22,7 @@ var (
 
 // Config 配置
 type Config struct {
-	DataDir string `yaml:"dataDir"`
+	TempPath string `yaml:"tempPath"`
 }
 
 // getConfigFilePath 获取配置文件路径

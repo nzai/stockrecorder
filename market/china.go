@@ -4,24 +4,25 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
-	"time"
 
 	"github.com/guotie/gogb2312"
 	"github.com/nzai/go-utility/net"
 )
 
-//	中国证券市场
+// China 中国证券市场
 type China struct{}
 
+// Name 名称
 func (m China) Name() string {
 	return "China"
 }
 
+// Timezone 时区
 func (m China) Timezone() string {
 	return "Asia/Shanghai"
 }
 
-//	更新上市公司列表
+// Companies 上市公司
 func (m China) Companies() ([]Company, error) {
 
 	dict := make(map[string]Company, 0)
@@ -54,7 +55,7 @@ func (m China) Companies() ([]Company, error) {
 		dict[company.Code] = company
 	}
 
-	companies := make([]Company, 0)
+	var companies []Company
 	for _, company := range dict {
 		companies = append(companies, company)
 	}
@@ -65,7 +66,7 @@ func (m China) Companies() ([]Company, error) {
 	return companies, nil
 }
 
-//	上海证券交易所上市公司
+// shanghaiCompanies 上海证券交易所上市公司
 func (m China) shanghaiCompanies() ([]Company, error) {
 
 	urls := [...]string{
@@ -74,7 +75,7 @@ func (m China) shanghaiCompanies() ([]Company, error) {
 	}
 	referer := "http://www.sse.com.cn/assortment/stock/list/share/"
 
-	list := make([]Company, 0)
+	var list []Company
 	for _, url := range urls {
 
 		//	尝试从网络获取实时上市公司列表
@@ -84,7 +85,7 @@ func (m China) shanghaiCompanies() ([]Company, error) {
 		}
 
 		//	解析json
-		companies, err := m.parseShanghaiJson(text)
+		companies, err := m.parseShanghaiJSON(text)
 		if err != nil {
 			return nil, err
 		}
@@ -95,8 +96,8 @@ func (m China) shanghaiCompanies() ([]Company, error) {
 	return list, nil
 }
 
-//	解析上海证券交易所上市公司
-func (m China) parseShanghaiJson(text string) ([]Company, error) {
+// parseShanghaiJSON 解析上海证券交易所上市公司
+func (m China) parseShanghaiJSON(text string) ([]Company, error) {
 
 	//	深圳证券交易所的查询结果是GBK编码的，需要转成UTF8
 	text, err, _, _ := gogb2312.ConvertGB2312String(text)
@@ -108,9 +109,9 @@ func (m China) parseShanghaiJson(text string) ([]Company, error) {
 	regex := regexp.MustCompile(`(\d{6})	  (\S+)	  \d{6}	  \S+`)
 	group := regex.FindAllStringSubmatch(text, -1)
 
-	companies := make([]Company, 0)
+	var companies []Company
 	for _, section := range group {
-		companies = append(companies, Company{Market: m.Name(), Code: section[1], Name: section[2]})
+		companies = append(companies, Company{Code: section[1], Name: section[2]})
 	}
 
 	if len(companies) == 0 {
@@ -126,7 +127,7 @@ func (m China) shenzhenCompanies() ([]Company, error) {
 		"http://www.szse.cn/szseWeb/ShowReport.szse?SHOWTYPE=EXCEL&CATALOGID=1110&tab1PAGENUM=1&ENCODE=1&TABKEY=tab1",
 	}
 
-	list := make([]Company, 0)
+	var list []Company
 	for _, url := range urls {
 
 		//	尝试从网络获取实时上市公司列表
@@ -142,7 +143,7 @@ func (m China) shenzhenCompanies() ([]Company, error) {
 		}
 
 		//	解析Html
-		companies, err := m.parseShenzhenHtml(html)
+		companies, err := m.parseShenzhenHTML(html)
 		if err != nil {
 			return nil, err
 		}
@@ -153,15 +154,15 @@ func (m China) shenzhenCompanies() ([]Company, error) {
 	return list, nil
 }
 
-//	解析深圳证券交易所上市公司
-func (m China) parseShenzhenHtml(html string) ([]Company, error) {
+// parseShenzhenHTML 解析深圳证券交易所上市公司
+func (m China) parseShenzhenHTML(html string) ([]Company, error) {
 	//  使用正则分析html
 	regex := regexp.MustCompile(`null align='center' >(\d{6})</td><td  class='cls-data-td' null align='center' >([^<]*?)</td>`)
 	group := regex.FindAllStringSubmatch(html, -1)
 
-	companies := make([]Company, 0)
+	var companies []Company
 	for _, section := range group {
-		companies = append(companies, Company{Market: m.Name(), Code: section[1], Name: section[2]})
+		companies = append(companies, Company{Code: section[1], Name: section[2]})
 	}
 
 	if len(companies) == 0 {
@@ -171,22 +172,24 @@ func (m China) parseShenzhenHtml(html string) ([]Company, error) {
 	return companies, nil
 }
 
-//	所有中国上市公司,在雅虎财经查询分时数据时都要带上后缀
-var chineseSuffix map[string]string = map[string]string{
-	"6": "SS",
-	"9": "SS",
-	"0": "SZ",
-	"2": "SZ",
-	"3": "SZ",
-}
+// YahooQueryCode 雅虎查询代码
+func (m China) YahooQueryCode(company Company) string {
 
-//	抓取
-func (m China) Crawl(code string, day time.Time) (string, error) {
-
-	suffix, found := chineseSuffix[code[:1]]
-	if !found {
+	var suffix string
+	switch company.Code[:1] {
+	case "0":
+		suffix = "SZ"
+	case "2":
+		suffix = "SZ"
+	case "3":
+		suffix = "SZ"
+	case "9":
+		suffix = "SS"
+	case "6":
+		suffix = "SS"
+	default:
 		suffix = "SS"
 	}
 
-	return downloadCompanyDaily(m, code, code+"."+suffix, day)
+	return company.Code + "." + suffix
 }

@@ -3,9 +3,12 @@ package main
 import (
 	"log"
 	"runtime/debug"
-	"sync"
 
 	"github.com/nzai/stockrecorder/config"
+	"github.com/nzai/stockrecorder/market"
+	"github.com/nzai/stockrecorder/recorder"
+	"github.com/nzai/stockrecorder/source"
+	"github.com/nzai/stockrecorder/store"
 )
 
 func main() {
@@ -27,22 +30,13 @@ func main() {
 
 	log.Print("启动市场监视任务")
 
-	// //	美国股市
-	// market.Add(market.America{})
-	// //	中国股市
-	// market.Add(market.China{})
-	// //	香港股市
-	// market.Add(market.HongKong{})
-
-	// //	启动监视
-	// err = market.Monitor()
-	// if err != nil {
-	// 	log.Printf("启动市场监视任务时发生错误: %s", err.Error())
-	// }
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	wg.Wait()
-
+	// 创建记录器，使用雅虎财经作为数据源，亚马逊S3作为存储
+	r := recorder.NewRecorder(conf,
+		source.YahooFinance{},
+		store.AmazonS3{},
+		market.America{},
+		// market.China{},
+		// market.HongKong{},
+	)
+	r.RunAndWait()
 }

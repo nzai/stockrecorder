@@ -4,23 +4,24 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
-	"time"
 
 	"github.com/nzai/go-utility/net"
 )
 
-//	香港证券市场
+// HongKong 香港证券市场
 type HongKong struct{}
 
+// Name 名称
 func (m HongKong) Name() string {
 	return "HongKong"
 }
 
+// Timezone 所处时区
 func (m HongKong) Timezone() string {
 	return "Asia/Hong_Kong"
 }
 
-//	更新上市公司列表
+// Companies 上市公司
 func (m HongKong) Companies() ([]Company, error) {
 
 	urls := [...]string{
@@ -28,7 +29,7 @@ func (m HongKong) Companies() ([]Company, error) {
 		"https://www.hkex.com.hk/chi/market/sec_tradinfo/stockcode/eisdgems_c.htm",
 	}
 
-	companies := make([]Company, 0)
+	var list []Company
 	for _, url := range urls {
 
 		//	尝试从网络获取实时上市公司列表
@@ -38,30 +39,30 @@ func (m HongKong) Companies() ([]Company, error) {
 		}
 
 		//	解析json
-		hk, err := m.parseHtml(html)
+		companies, err := m.parseHTML(html)
 		if err != nil {
 			return nil, err
 		}
 
-		companies = append(companies, hk...)
+		list = append(list, companies...)
 	}
 
 	//	按Code排序
-	sort.Sort(CompanyList(companies))
+	sort.Sort(CompanyList(list))
 
-	return companies, nil
+	return list, nil
 }
 
 //	解析香港证券交易所上市公司
-func (m HongKong) parseHtml(html string) ([]Company, error) {
+func (m HongKong) parseHTML(html string) ([]Company, error) {
 
 	//  使用正则分析json
 	regex := regexp.MustCompile(`>(\d{5})</td>\s*?<td[^>]*?>(<a.*?>)?([^<]+?)(</a>)?</td>`)
 	group := regex.FindAllStringSubmatch(html, -1)
 
-	companies := make([]Company, 0)
+	var companies []Company
 	for _, section := range group {
-		companies = append(companies, Company{Market: m.Name(), Code: section[1], Name: section[3]})
+		companies = append(companies, Company{Code: section[1], Name: section[3]})
 	}
 
 	if len(companies) == 0 {
@@ -71,12 +72,13 @@ func (m HongKong) parseHtml(html string) ([]Company, error) {
 	return companies, nil
 }
 
-//	抓取
-func (m HongKong) Crawl(code string, day time.Time) (string, error) {
-	queryCode := code[1:] + ".HK"
-	if code[:1] != "0" {
-		queryCode = code + ".HK"
+// YahooQueryCode 雅虎查询代码
+func (m HongKong) YahooQueryCode(company Company) string {
+
+	queryCode := company.Code[1:] + ".HK"
+	if company.Code[:1] != "0" {
+		queryCode = company.Code + ".HK"
 	}
 
-	return downloadCompanyDaily(m, code, queryCode, day)
+	return queryCode
 }
