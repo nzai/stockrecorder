@@ -14,7 +14,7 @@ type YahooFinance struct{}
 
 // Expiration 最早能查到90天前的数据
 func (yahoo YahooFinance) Expiration() time.Duration {
-	return time.Hour * 24 * 70
+	return time.Hour * 24 * 7
 }
 
 // Crawl 获取公司每天的报价
@@ -28,7 +28,7 @@ func (yahoo YahooFinance) Crawl(_market market.Market, company market.Company, d
 	url := fmt.Sprintf(pattern, _market.YahooQueryCode(company), end.Unix(), start.Unix())
 
 	// 查询Yahoo财经接口,返回股票分时数据
-	str, err := net.DownloadStringRetry(url, yahoo.RetryCount(), int(yahoo.RetryInterval().Seconds()))
+	str, err := net.DownloadStringRetry(url, yahoo.RetryCount(), yahoo.RetryInterval())
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func (yahoo YahooFinance) Crawl(_market market.Market, company market.Company, d
 	if err != nil {
 		return nil, err
 	}
-
+	// log.Print(quote)
 	// 校验
 	valid := yahoo.valid(quote)
 	if !valid {
@@ -47,13 +47,13 @@ func (yahoo YahooFinance) Crawl(_market market.Market, company market.Company, d
 	}
 
 	// 计算时差
-	difference, err := yahoo.timeDifference(_market)
+	timeZoneDifference, err := yahoo.timeDifference(_market)
 	if err != nil {
 		return nil, err
 	}
 
 	// 解析
-	return yahoo.parse(_market, company, date, quote, difference)
+	return yahoo.parse(_market, company, date, quote, timeZoneDifference)
 }
 
 // valid 校验
@@ -99,7 +99,7 @@ func (yahoo YahooFinance) valid(quote *YahooQuote) bool {
 }
 
 // parse 解析结果
-func (yahoo YahooFinance) parse(_market market.Market, company market.Company, date time.Time, quote *YahooQuote, duration time.Duration) (*market.CompanyDailyQuote, error) {
+func (yahoo YahooFinance) parse(_market market.Market, company market.Company, date time.Time, quote *YahooQuote, timeZoneDifference int64) (*market.CompanyDailyQuote, error) {
 
 	companyQuote := market.CompanyDailyQuote{
 		Date:    date,
@@ -113,7 +113,8 @@ func (yahoo YahooFinance) parse(_market market.Market, company market.Company, d
 	for index, ts := range quote.Chart.Result[0].Timestamp {
 
 		q := market.Quote{
-			Time:   time.Unix(ts+int64(duration), 0),
+			Code:   company.Code,
+			Time:   time.Unix(ts+timeZoneDifference, 0),
 			Open:   _quote.Open[index],
 			Close:  _quote.Close[index],
 			Max:    _quote.High[index],
@@ -139,7 +140,7 @@ func (yahoo YahooFinance) parse(_market market.Market, company market.Company, d
 }
 
 // timeDifference 计算时差
-func (yahoo YahooFinance) timeDifference(_market market.Market) (time.Duration, error) {
+func (yahoo YahooFinance) timeDifference(_market market.Market) (int64, error) {
 
 	now := time.Now()
 	// 服务器当前时区
@@ -156,7 +157,7 @@ func (yahoo YahooFinance) timeDifference(_market market.Market) (time.Duration, 
 	_, offsetLocal := now.Zone()
 	_, offsetMarket := marketNow.Zone()
 
-	return time.Second * time.Duration(offsetMarket-offsetLocal), nil
+	return int64(offsetMarket - offsetLocal), nil
 }
 
 // ParallelMax 最大并发数
