@@ -40,7 +40,7 @@ func getConfigFilePath() (string, error) {
 		return "", err
 	}
 
-	return filepath.Join(startupDir, defaultConfigFile), nil
+	return filepath.Join(startupDir, *configPath), nil
 }
 
 // Parse 解析配置
