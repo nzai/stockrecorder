@@ -2,7 +2,6 @@ package store
 
 import (
 	"database/sql"
-	"log"
 	"path/filepath"
 	"strings"
 	"time"
@@ -19,14 +18,20 @@ import (
 type AmazonS3 struct{}
 
 // Exists 判断某天的数据是否存在
-func (s3 AmazonS3) Exists(_market market.Market, date time.Time) (bool, error) {
-	return false, nil
+func (s3 AmazonS3) Exists(tempPath string, _market market.Market, date time.Time) (bool, error) {
+
+	filePath, err := s3.sqliteFilePath(_market, date, tempPath)
+	if err != nil {
+		return false, err
+	}
+
+	return io.IsExists(filePath), nil
 }
 
 // Save 保存
 func (s3 AmazonS3) Save(tempPath string, quote market.DailyQuote) error {
 
-	log.Printf("market:%v date:%v temp:%s", quote.Market, quote.Date, tempPath)
+	// log.Printf("market:%v date:%v temp:%s", quote.Market, quote.Date, tempPath)
 	filePath, err := s3.sqliteFilePath(quote.Market, quote.Date, tempPath)
 	if err != nil {
 		return err
@@ -54,9 +59,17 @@ func (s3 AmazonS3) Save(tempPath string, quote market.DailyQuote) error {
 	}
 
 	// 提交事务
-	tx.Commit()
+	err = tx.Commit()
+	if err != nil {
+		// 回滚事务
+		tx.Rollback()
+		return err
+	}
 
-	return nil
+	// 压缩空间
+	_, err = db.Exec("vacuum")
+
+	return err
 }
 
 // sqliteFilePath SQLite文件路径
@@ -93,13 +106,10 @@ func (s3 AmazonS3) getSQLiteDB(filePath string) (*sql.DB, error) {
 func (s3 AmazonS3) createSQLiteTables(db *sql.DB) error {
 
 	scripts := map[string]string{
-		"company":           `CREATE TABLE [company] ([code] VARCHAR(20) NOT NULL, [name] VARCHAR(200) NOT NULL, CONSTRAINT [] PRIMARY KEY ([code]));`,
-		"pre":               `CREATE TABLE [pre] ([code] VARCHAR(20) NOT NULL, [time] DATETIME NOT NULL, [open] FLOAT(20, 2) NOT NULL, [close] FLOAT(20, 2) NOT NULL, [high] FLOAT(20, 2) NOT NULL, [low] FLOAT(20, 2) NOT NULL, [volume] INTEGER NOT NULL);`,
-		"regular":           `CREATE TABLE [regular] ([code] VARCHAR(20) NOT NULL, [time] DATETIME NOT NULL, [open] FLOAT(20, 2) NOT NULL, [close] FLOAT(20, 2) NOT NULL, [high] FLOAT(20, 2) NOT NULL, [low] FLOAT(20, 2) NOT NULL, [volume] INTEGER NOT NULL);`,
-		"post":              `CREATE TABLE [post] ([code] VARCHAR(20) NOT NULL, [time] DATETIME NOT NULL, [open] FLOAT(20, 2) NOT NULL, [close] FLOAT(20, 2) NOT NULL, [high] FLOAT(20, 2) NOT NULL, [low] FLOAT(20, 2) NOT NULL, [volume] INTEGER NOT NULL);`,
-		"pre_code_time":     `CREATE INDEX [pre_code_time] ON [pre] ([code], [time]);`,
-		"regular_code_time": `CREATE INDEX [regular_code_time] ON [regular] ([code], [time]);`,
-		"post_code_time":    `CREATE INDEX [post_code_time] ON [post] ([code], [time]);`,
+		"company": `CREATE TABLE [company] ([code] VARCHAR(20) NOT NULL, [name] VARCHAR(200) NOT NULL, CONSTRAINT [] PRIMARY KEY ([code]));`,
+		"pre":     `CREATE TABLE [pre] ([code] VARCHAR(20) NOT NULL, [time] DATETIME NOT NULL, [open] INT NOT NULL, [close] INT NOT NULL, [high] INT NOT NULL, [low] INT NOT NULL, [volume] INTEGER NOT NULL);CREATE INDEX [pre_code_time] ON [pre] ([code], [time]);`,
+		"regular": `CREATE TABLE [regular] ([code] VARCHAR(20) NOT NULL, [time] DATETIME NOT NULL, [open] INT NOT NULL, [close] INT NOT NULL, [high] INT NOT NULL, [low] INT NOT NULL, [volume] INTEGER NOT NULL);CREATE INDEX [regular_code_time] ON [regular] ([code], [time]);`,
+		"post":    `CREATE TABLE [post] ([code] VARCHAR(20) NOT NULL, [time] DATETIME NOT NULL, [open] INT NOT NULL, [close] INT NOT NULL, [high] INT NOT NULL, [low] INT NOT NULL, [volume] INTEGER NOT NULL);CREATE INDEX [post_code_time] ON [post] ([code], [time]);`,
 	}
 
 	for name, script := range scripts {
@@ -202,7 +212,7 @@ func (s3 AmazonS3) saveQuoteToSQLite(tx *sql.Tx, table string, quotes []market.Q
 		return nil
 	}
 
-	stmt, err := tx.Prepare("replace into " + table + " values(?,?,?,?,?,?)")
+	stmt, err := tx.Prepare("replace into " + table + " values(?,?,?,?,?,?,?)")
 	if err != nil {
 		return err
 	}
@@ -211,7 +221,7 @@ func (s3 AmazonS3) saveQuoteToSQLite(tx *sql.Tx, table string, quotes []market.Q
 	for _, quote := range quotes {
 
 		//	新增
-		result, err := stmt.Exec(quote.Time, quote.Open, quote.Close, quote.Max, quote.Min, quote.Volume)
+		result, err := stmt.Exec(quote.Code, quote.Time, int(quote.Open*100), int(quote.Close*100), int(quote.Max*100), int(quote.Min*100), quote.Volume)
 		if err != nil {
 			return err
 		}
