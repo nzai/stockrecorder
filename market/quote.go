@@ -4,6 +4,7 @@ import "time"
 
 // Quote 报价
 type Quote struct {
+	Code   string    // 公司编号
 	Time   time.Time // 起始时间
 	Open   float32   // 开盘价
 	Close  float32   // 收盘价
