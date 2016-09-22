@@ -80,12 +80,12 @@ func (mr marketRecorder) RunAndWait() {
 	for {
 		log.Printf("[%s] 定时任务已启动，将于%s后激活下一次任务", mr.Name(), duration.String())
 		now = <-time.After(duration)
-		log.Printf("[%s] 获取%s的数据开始", mr.Name(), now.Format("20060102"))
+		log.Printf("[%s] 获取%s的数据开始", mr.Name(), now.Format(datePattern))
 		err = mr.crawlYesterdayData(now.Add(-time.Hour * 24))
 		if err != nil {
-			log.Printf("[%s] 获取%s的数据时发生错误: %v", mr.Name(), now.Format("20060102"), err)
+			log.Printf("[%s] 获取%s的数据时发生错误: %v", mr.Name(), now.Format(datePattern), err)
 		}
-		log.Printf("[%s] 获取%s的数据结束", mr.Name(), now.Format("20060102"))
+		log.Printf("[%s] 获取%s的数据结束", mr.Name(), now.Format(datePattern))
 
 		// 每天调整延时时长，保证长时间运行的时间精度
 		duration, err = mr.durationToNextDay(time.Now())
@@ -126,11 +126,24 @@ func (mr marketRecorder) crawlHistoryData(now time.Time, dur time.Duration) erro
 	log.Printf("[%s] 共有%d家上市公司", mr.Name(), len(companies))
 
 	// 结束日期(昨天0点,不含)
-	endDate := now.Add(dur).Add(-time.Hour * 24 * 2)
+	endDate := now.Add(dur).AddDate(0, 0, -2)
 	// 起始日期(含)
 	startDate := endDate.Add(-mr.source.Expiration())
+	log.Printf("[%s]抓取历史数据起始日期: %s  结束日期: %s", mr.Name(), startDate.Format(datePattern), endDate.Format(datePattern))
 
 	for startDate.Before(endDate) {
+
+		// 避免重复记录
+		recorded, err := mr.store.Exists(mr.config.TempPath, mr.Market, startDate)
+		if err != nil {
+			return err
+		}
+
+		if recorded {
+			// 后移一天
+			startDate = startDate.Add(time.Hour * 24)
+			continue
+		}
 
 		// 抓取那一天的报价
 		err = mr.crawl(companies, startDate)
@@ -149,7 +162,7 @@ func (mr marketRecorder) crawlHistoryData(now time.Time, dur time.Duration) erro
 func (mr marketRecorder) crawlYesterdayData(yesterday time.Time) error {
 
 	// 避免重复记录
-	recorded, err := mr.store.Exists(mr.Market, yesterday)
+	recorded, err := mr.store.Exists(mr.config.TempPath, mr.Market, yesterday)
 	if err != nil || recorded {
 		return err
 	}
@@ -197,7 +210,7 @@ func (mr marketRecorder) crawl(companies []market.Company, date time.Time) error
 				dailyQuote.Regular = append(dailyQuote.Regular, quote.Regular...)
 				dailyQuote.Post = append(dailyQuote.Post, quote.Post...)
 			}
-
+			// log.Printf("%s", _company.Code)
 			<-ch
 			wg.Done()
 		}(mr.Market, company, date)
@@ -205,7 +218,6 @@ func (mr marketRecorder) crawl(companies []market.Company, date time.Time) error
 		// 限流
 		ch <- false
 	}
-
 	//	阻塞，直到抓取所有
 	wg.Wait()
 
