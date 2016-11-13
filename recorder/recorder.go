@@ -131,7 +131,7 @@ func (mr marketRecorder) crawlHistoryData(now time.Time, dur time.Duration) erro
 	startDate := endDate.Add(-mr.source.Expiration())
 	log.Printf("[%s]抓取历史数据起始日期: %s  结束日期: %s", mr.Name(), startDate.Format(datePattern), endDate.Format(datePattern))
 
-	for startDate.Before(endDate) {
+	for !startDate.After(endDate) {
 
 		// 避免重复记录
 		recorded, err := mr.store.Exists(mr.config.TempPath, mr.Market, startDate)

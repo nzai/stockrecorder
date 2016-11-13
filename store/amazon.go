@@ -18,9 +18,9 @@ import (
 type AmazonS3 struct{}
 
 // Exists 判断某天的数据是否存在
-func (s3 AmazonS3) Exists(tempPath string, _market market.Market, date time.Time) (bool, error) {
+func (s3 AmazonS3) Exists(rootPath string, _market market.Market, date time.Time) (bool, error) {
 
-	filePath, err := s3.sqliteFilePath(_market, date, tempPath)
+	filePath, err := s3.sqliteFilePath(rootPath, _market, date)
 	if err != nil {
 		return false, err
 	}
@@ -29,10 +29,9 @@ func (s3 AmazonS3) Exists(tempPath string, _market market.Market, date time.Time
 }
 
 // Save 保存
-func (s3 AmazonS3) Save(tempPath string, quote market.DailyQuote) error {
+func (s3 AmazonS3) Save(rootPath string, quote market.DailyQuote) error {
 
-	// log.Printf("market:%v date:%v temp:%s", quote.Market, quote.Date, tempPath)
-	filePath, err := s3.sqliteFilePath(quote.Market, quote.Date, tempPath)
+	filePath, err := s3.sqliteFilePath(rootPath, quote.Market, quote.Date)
 	if err != nil {
 		return err
 	}
@@ -73,10 +72,10 @@ func (s3 AmazonS3) Save(tempPath string, quote market.DailyQuote) error {
 }
 
 // sqliteFilePath SQLite文件路径
-func (s3 AmazonS3) sqliteFilePath(_market market.Market, date time.Time, tempPath string) (string, error) {
+func (s3 AmazonS3) sqliteFilePath(rootPath string, _market market.Market, date time.Time) (string, error) {
 
 	// 文件路径形如 ..\2016\09\17\market.db
-	dir := filepath.Join(tempPath, date.Format("2006"), date.Format("01"), date.Format("02"))
+	dir := filepath.Join(rootPath, date.Format("2006"), date.Format("01"), date.Format("02"))
 	err := io.EnsureDir(dir)
 	if err != nil {
 		return "", err

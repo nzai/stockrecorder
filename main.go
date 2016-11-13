@@ -35,8 +35,8 @@ func main() {
 		source.YahooFinance{},
 		store.AmazonS3{},
 		market.America{},
-		// market.China{},
-		// market.HongKong{},
+		market.China{},
+		market.HongKong{},
 	)
 	r.RunAndWait()
 }
