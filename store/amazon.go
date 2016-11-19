@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -46,7 +47,7 @@ func NewAmazonS3(s3config AmazonS3Config) AmazonS3 {
 
 	return AmazonS3{
 		config: s3config,
-		svc:    s3.New(sess, aws.NewConfig().WithRegion(s3config.Bucket)),
+		svc:    s3.New(sess, aws.NewConfig().WithRegion(s3config.Region)),
 	}
 }
 
@@ -96,6 +97,8 @@ func (s AmazonS3) Save(quote market.DailyQuote) error {
 		Body:         br,
 		StorageClass: aws.String(s3.ObjectStorageClassReducedRedundancy),
 	})
+
+	log.Printf("[%s] 上传了文件%s", quote.Market.Name(), s.savePath(quote.Market, quote.Date))
 
 	return err
 }

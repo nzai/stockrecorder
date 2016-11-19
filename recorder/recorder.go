@@ -69,6 +69,7 @@ func (mr marketRecorder) RunAndWait() {
 		err = mr.crawlHistoryData(_now, _duration)
 		if err != nil {
 			log.Printf("[%s] 获取历史数据时发生错误: %v", mr.Name(), err)
+			return
 		}
 		log.Printf("[%s] 获取历史数据结束", mr.Name())
 	}(now, duration)
@@ -81,8 +82,9 @@ func (mr marketRecorder) RunAndWait() {
 		err = mr.crawlYesterdayData(now.Add(-time.Hour * 24))
 		if err != nil {
 			log.Printf("[%s] 获取%s的数据时发生错误: %v", mr.Name(), now.Format(datePattern), err)
+		} else {
+			log.Printf("[%s] 获取%s的数据结束", mr.Name(), now.Format(datePattern))
 		}
-		log.Printf("[%s] 获取%s的数据结束", mr.Name(), now.Format(datePattern))
 
 		// 每天调整延时时长，保证长时间运行的时间精度
 		duration, err = mr.durationToNextDay(time.Now())
@@ -138,7 +140,7 @@ func (mr marketRecorder) crawlHistoryData(now time.Time, dur time.Duration) erro
 
 		if recorded {
 			// 后移一天
-			startDate = startDate.Add(time.Hour * 24)
+			startDate = startDate.AddDate(0, 0, 1)
 			continue
 		}
 
@@ -149,7 +151,7 @@ func (mr marketRecorder) crawlHistoryData(now time.Time, dur time.Duration) erro
 		}
 
 		// 后移一天
-		startDate = startDate.Add(time.Hour * 24)
+		startDate = startDate.AddDate(0, 0, 1)
 	}
 
 	return nil

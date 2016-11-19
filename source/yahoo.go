@@ -24,7 +24,7 @@ func (yahoo YahooFinance) Crawl(_market market.Market, company market.Company, d
 	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 	end := start.Add(time.Hour * 24)
 
-	pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%7Csplit%7Cearn&corsDomain=finance.yahoo.com"
+	pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%%7Csplit%%7Cearn&corsDomain=finance.yahoo.com"
 	url := fmt.Sprintf(pattern, _market.YahooQueryCode(company), end.Unix(), start.Unix())
 
 	// 查询Yahoo财经接口,返回股票分时数据
@@ -123,6 +123,8 @@ func (yahoo YahooFinance) parse(_market market.Market, company market.Company, d
 			series = &companyDailyQuote.Regular
 		} else if ts >= periods.Posts[0][0].Start && ts < periods.Posts[0][0].End {
 			series = &companyDailyQuote.Post
+		} else {
+			continue
 		}
 
 		series.Count++
@@ -131,7 +133,7 @@ func (yahoo YahooFinance) parse(_market market.Market, company market.Company, d
 		series.Close = append(series.Close, uint32(_quote.Close[index]*100))
 		series.Max = append(series.Max, uint32(_quote.High[index]*100))
 		series.Min = append(series.Min, uint32(_quote.Low[index]*100))
-		series.Volume = append(series.Open, uint32(_quote.Volume[index]))
+		series.Volume = append(series.Volume, uint32(_quote.Volume[index]))
 	}
 
 	return &companyDailyQuote, nil
@@ -160,7 +162,7 @@ func (yahoo YahooFinance) timeDifference(_market market.Market) (int64, error) {
 
 // ParallelMax 最大并发数
 func (yahoo YahooFinance) ParallelMax() int {
-	return 64
+	return 16
 }
 
 // RetryCount 失败重试次数
