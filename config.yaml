@@ -1,1 +1,7 @@
-tempPath: "c:\\data"
+amazon:
+    s3:
+        id: "AccessKeyID"
+        secret: "SecretAccessKey"
+        region: "Region"
+        bucket: "Bucket"
+        keyroot: "KeyRoot"

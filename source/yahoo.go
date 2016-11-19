@@ -101,42 +101,40 @@ func (yahoo YahooFinance) valid(quote *YahooQuote) bool {
 // parse 解析结果
 func (yahoo YahooFinance) parse(_market market.Market, company market.Company, date time.Time, quote *YahooQuote, timeZoneDifference int64) (*market.CompanyDailyQuote, error) {
 
-	companyQuote := market.CompanyDailyQuote{
-		Date:    date,
-		Company: company,
-		Pre:     []market.Quote{},
-		Regular: []market.Quote{},
-		Post:    []market.Quote{},
+	companyDailyQuote := market.CompanyDailyQuote{
+		Code: company.Code,
+		Name: company.Name,
 	}
 
 	periods, _quote := quote.Chart.Result[0].Meta.TradingPeriods, quote.Chart.Result[0].Indicators.Quotes[0]
 	for index, ts := range quote.Chart.Result[0].Timestamp {
 
-		q := market.Quote{
-			Code:   company.Code,
-			Time:   time.Unix(ts+timeZoneDifference, 0),
-			Open:   _quote.Open[index],
-			Close:  _quote.Close[index],
-			Max:    _quote.High[index],
-			Min:    _quote.Low[index],
-			Volume: _quote.Volume[index]}
-
 		//	如果全为0就忽略
-		if q.Open == 0 && q.Close == 0 && q.Max == 0 && q.Min == 0 && q.Volume == 0 {
+		if _quote.Open[index] == 0 && _quote.Close[index] == 0 && _quote.High[index] == 0 && _quote.Low[index] == 0 && _quote.Volume[index] == 0 {
 			continue
 		}
 
+		var series *market.QuoteSeries
+
 		//	Pre, Regular, Post
 		if ts >= periods.Pres[0][0].Start && ts < periods.Pres[0][0].End {
-			companyQuote.Pre = append(companyQuote.Pre, q)
+			series = &companyDailyQuote.Pre
 		} else if ts >= periods.Regulars[0][0].Start && ts < periods.Regulars[0][0].End {
-			companyQuote.Regular = append(companyQuote.Regular, q)
+			series = &companyDailyQuote.Regular
 		} else if ts >= periods.Posts[0][0].Start && ts < periods.Posts[0][0].End {
-			companyQuote.Post = append(companyQuote.Post, q)
+			series = &companyDailyQuote.Post
 		}
+
+		series.Count++
+		series.Timestamp = append(series.Timestamp, uint32(ts+timeZoneDifference))
+		series.Open = append(series.Open, uint32(_quote.Open[index]*100))
+		series.Close = append(series.Close, uint32(_quote.Close[index]*100))
+		series.Max = append(series.Max, uint32(_quote.High[index]*100))
+		series.Min = append(series.Min, uint32(_quote.Low[index]*100))
+		series.Volume = append(series.Open, uint32(_quote.Volume[index]))
 	}
 
-	return &companyQuote, nil
+	return &companyDailyQuote, nil
 }
 
 // timeDifference 计算时差

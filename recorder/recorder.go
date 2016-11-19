@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nzai/stockrecorder/config"
 	"github.com/nzai/stockrecorder/market"
 	"github.com/nzai/stockrecorder/source"
 	"github.com/nzai/stockrecorder/store"
@@ -18,15 +17,14 @@ const (
 
 // Recorder 股票记录器
 type Recorder struct {
-	config  *config.Config  // 配置
 	source  source.Source   // 数据源
 	store   store.Store     // 存储
 	markets []market.Market // 市场
 }
 
 // NewRecorder 新建Recorder
-func NewRecorder(config *config.Config, source source.Source, store store.Store, markets ...market.Market) *Recorder {
-	return &Recorder{config, source, store, markets}
+func NewRecorder(source source.Source, store store.Store, markets ...market.Market) *Recorder {
+	return &Recorder{source, store, markets}
 }
 
 // RunAndWait 执行
@@ -37,7 +35,7 @@ func (r Recorder) RunAndWait() {
 	for _, m := range r.markets {
 		go func(m market.Market) {
 			// 构造记录器
-			mr := marketRecorder{r.config, r.source, r.store, m}
+			mr := marketRecorder{r.source, r.store, m}
 			// 启动
 			mr.RunAndWait()
 			wg.Done()
@@ -49,10 +47,9 @@ func (r Recorder) RunAndWait() {
 
 // marketRecorder 市场记录器
 type marketRecorder struct {
-	config        *config.Config // 配置
-	source        source.Source  // 数据源
-	store         store.Store    // 存储
-	market.Market                // 市场
+	source        source.Source // 数据源
+	store         store.Store   // 存储
+	market.Market               // 市场
 }
 
 // RunAndWait 启动市场记录器
@@ -134,7 +131,7 @@ func (mr marketRecorder) crawlHistoryData(now time.Time, dur time.Duration) erro
 	for !startDate.After(endDate) {
 
 		// 避免重复记录
-		recorded, err := mr.store.Exists(mr.config.TempPath, mr.Market, startDate)
+		recorded, err := mr.store.Exists(mr.Market, startDate)
 		if err != nil {
 			return err
 		}
@@ -162,7 +159,7 @@ func (mr marketRecorder) crawlHistoryData(now time.Time, dur time.Duration) erro
 func (mr marketRecorder) crawlYesterdayData(yesterday time.Time) error {
 
 	// 避免重复记录
-	recorded, err := mr.store.Exists(mr.config.TempPath, mr.Market, yesterday)
+	recorded, err := mr.store.Exists(mr.Market, yesterday)
 	if err != nil || recorded {
 		return err
 	}
@@ -188,12 +185,8 @@ func (mr marketRecorder) crawl(companies []market.Company, date time.Time) error
 	wg.Add(len(companies))
 
 	dailyQuote := market.DailyQuote{
-		Market:    mr.Market,
-		Date:      date,
-		Companies: []market.Company{},
-		Pre:       []market.Quote{},
-		Regular:   []market.Quote{},
-		Post:      []market.Quote{},
+		Market: mr.Market,
+		Date:   date,
 	}
 
 	for _, company := range companies {
@@ -205,12 +198,9 @@ func (mr marketRecorder) crawl(companies []market.Company, date time.Time) error
 					log.Print(err)
 				}
 			} else {
-				dailyQuote.Companies = append(dailyQuote.Companies, _company)
-				dailyQuote.Pre = append(dailyQuote.Pre, quote.Pre...)
-				dailyQuote.Regular = append(dailyQuote.Regular, quote.Regular...)
-				dailyQuote.Post = append(dailyQuote.Post, quote.Post...)
+				dailyQuote.Quotes = append(dailyQuote.Quotes, *quote)
 			}
-			// log.Printf("%s", _company.Code)
+
 			<-ch
 			wg.Done()
 		}(mr.Market, company, date)
@@ -222,7 +212,7 @@ func (mr marketRecorder) crawl(companies []market.Company, date time.Time) error
 	wg.Wait()
 
 	// 保存
-	err := mr.store.Save(mr.config.TempPath, dailyQuote)
+	err := mr.store.Save(dailyQuote)
 	if err != nil {
 		return fmt.Errorf("[%s] 保存上市公司在%s的分时数据时发生错误: %v", mr.Market.Name(), date.Format(datePattern), err)
 	}
