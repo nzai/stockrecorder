@@ -157,7 +157,7 @@ func (m China) shenzhenCompanies() ([]Company, error) {
 // parseShenzhenHTML 解析深圳证券交易所上市公司
 func (m China) parseShenzhenHTML(html string) ([]Company, error) {
 	//  使用正则分析html
-	regex := regexp.MustCompile(`null align='center' >(\d{6})</td><td  class='cls-data-td' null align='center' >([^<]*?)</td>`)
+	regex := regexp.MustCompile(`@' align='center'  >(\d{6})</td><td  class='cls-data-td' null align='center'  >([^<]*?)</td>`)
 	group := regex.FindAllStringSubmatch(html, -1)
 
 	var companies []Company
