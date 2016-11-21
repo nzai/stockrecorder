@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"strings"
 	"time"
@@ -75,26 +76,29 @@ func (s AmazonS3) Exists(_market market.Market, date time.Time) (bool, error) {
 func (s AmazonS3) Save(quote market.DailyQuote) error {
 
 	// gzip 最高压缩
-	buffer := bytes.NewBufferString("")
+	buffer := new(bytes.Buffer)
 	w, err := gzip.NewWriterLevel(buffer, gzip.BestCompression)
 	if err != nil {
 		return err
 	}
-	defer w.Close()
 
 	_, err = w.Write(quote.Marshal())
 	if err != nil {
 		return err
 	}
 	w.Flush()
+	w.Close()
 
-	br := bytes.NewReader(buffer.Bytes())
+	zippedBuffer, err := ioutil.ReadAll(buffer)
+	if err != nil {
+		return err
+	}
 
 	// 上传
 	_, err = s.svc.PutObject(&s3.PutObjectInput{
 		Bucket:       aws.String(s.config.Bucket),
 		Key:          aws.String(s.savePath(quote.Market, quote.Date)),
-		Body:         br,
+		Body:         bytes.NewReader(zippedBuffer),
 		StorageClass: aws.String(s3.ObjectStorageClassReducedRedundancy),
 	})
 

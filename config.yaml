@@ -1,7 +1,7 @@
 amazon:
     s3:
-        id: "AccessKeyID"
-        secret: "SecretAccessKey"
-        region: "Region"
-        bucket: "Bucket"
-        keyroot: "KeyRoot"
+        id: "AKIAJ4J2HSH26CL3B7HQ"
+        secret: "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"
+        region: "ap-northeast-2"
+        bucket: "stock-quote"
+        keyroot: ""

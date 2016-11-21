@@ -52,11 +52,24 @@ type marketRecorder struct {
 	market.Market               // 市场
 }
 
+//	市场所处时区当前时间
+func (mr marketRecorder) Now() time.Time {
+	now := time.Now()
+
+	//	获取市场所在时区
+	location, err := time.LoadLocation(mr.Market.Timezone())
+	if err != nil {
+		return now
+	}
+
+	return now.In(location)
+}
+
 // RunAndWait 启动市场记录器
 func (mr marketRecorder) RunAndWait() {
 
 	// 获取市场所在地到明天零点的时间差
-	now := time.Now()
+	now := mr.Now()
 	duration, err := mr.durationToNextDay(now)
 	if err != nil {
 		log.Printf("[%s] 获取市场所在地到明天零点的时间差时发生错误: %v", mr.Name(), err)
@@ -161,9 +174,13 @@ func (mr marketRecorder) crawlHistoryData(now time.Time, dur time.Duration) erro
 func (mr marketRecorder) crawlYesterdayData(yesterday time.Time) error {
 
 	// 避免重复记录
-	recorded, err := mr.store.Exists(mr.Market, yesterday)
-	if err != nil || recorded {
+	exists, err := mr.store.Exists(mr.Market, yesterday)
+	if err != nil {
 		return err
+	}
+
+	if exists {
+		return nil
 	}
 
 	// 获取上市公司
