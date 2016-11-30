@@ -10,20 +10,22 @@ import (
 // DailyQuote 市场每日报价
 type DailyQuote struct {
 	Market
-	Date   time.Time
-	Quotes []CompanyDailyQuote
+	UTCOffset int
+	Date      time.Time
+	Quotes    []CompanyDailyQuote
 }
 
 // Marshal 序列化
 func (q DailyQuote) Marshal() []byte {
 
 	count := uint32(len(q.Quotes))
-	buffer := make([]byte, 8+count*4)
-	binary.BigEndian.PutUint32(buffer[:4], uint32(q.Date.Unix()))
-	binary.BigEndian.PutUint32(buffer[4:8], count)
+	buffer := make([]byte, 12+count*4)
+	binary.BigEndian.PutUint32(buffer[:4], uint32(q.UTCOffset+43200))
+	binary.BigEndian.PutUint32(buffer[4:8], uint32(q.Date.Unix()))
+	binary.BigEndian.PutUint32(buffer[8:12], count)
 
 	for index, quote := range q.Quotes {
-		binary.BigEndian.PutUint32(buffer[8+index*4:12+index*4], uint32(len(buffer)))
+		binary.BigEndian.PutUint32(buffer[12+index*4:16+index*4], uint32(len(buffer)))
 		buffer = append(buffer, quote.Marshal()...)
 	}
 
@@ -33,12 +35,13 @@ func (q DailyQuote) Marshal() []byte {
 // Unmarshal 反序列化
 func (q *DailyQuote) Unmarshal(buffer []byte) {
 
-	q.Date = time.Unix(int64(binary.BigEndian.Uint32(buffer[:4])), 0)
-	count := binary.BigEndian.Uint32(buffer[4:8])
+	q.UTCOffset = int(binary.BigEndian.Uint32(buffer[:4])) - 43200
+	q.Date = time.Unix(int64(binary.BigEndian.Uint32(buffer[4:8])+000), 0)
+	count := binary.BigEndian.Uint32(buffer[8:12])
 
 	for index := 0; index < int(count); index++ {
 
-		offset := binary.BigEndian.Uint32(buffer[8+index*4 : 12+index*4])
+		offset := binary.BigEndian.Uint32(buffer[12+index*4 : 16+index*4])
 		quote := CompanyDailyQuote{}
 		quote.Unmarshal(buffer[offset:])
 
@@ -48,6 +51,10 @@ func (q *DailyQuote) Unmarshal(buffer []byte) {
 
 // Equal 判断是否相等
 func (q DailyQuote) Equal(s DailyQuote) error {
+
+	if q.UTCOffset != s.UTCOffset {
+		return fmt.Errorf("DailyQuote UTCOffset不相等:q.UTCOffset=[%d] s.UTCOffset=[%d]", q.UTCOffset, s.UTCOffset)
+	}
 
 	if q.Date.Unix() != s.Date.Unix() {
 		return fmt.Errorf("DailyQuote Date不相等:q.Date=[%s] s.Date=[%s]", q.Date.Format("2006-01-02 15:04:05"), s.Date.Format("2006-01-02 15:04:05"))

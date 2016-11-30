@@ -1,15 +1,9 @@
 package source
 
 import (
-	"errors"
 	"time"
 
 	"github.com/nzai/stockrecorder/market"
-)
-
-var (
-	// ErrQuoteInvalid 报价校验失败
-	ErrQuoteInvalid = errors.New("报价校验失败")
 )
 
 // Source 数据源

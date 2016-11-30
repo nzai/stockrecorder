@@ -2,6 +2,7 @@ package source
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,9 +13,9 @@ import (
 // YahooFinance 雅虎财经数据源
 type YahooFinance struct{}
 
-// Expiration 最早能查到90天前的数据
+// Expiration 最早能查到60天前的数据
 func (yahoo YahooFinance) Expiration() time.Duration {
-	return time.Hour * 24 * 7
+	return time.Hour * 24 * 60
 }
 
 // Crawl 获取公司每天的报价
@@ -22,7 +23,7 @@ func (yahoo YahooFinance) Crawl(_market market.Market, company market.Company, d
 
 	// 起止时间
 	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
-	end := start.Add(time.Hour * 24)
+	end := start.AddDate(0, 0, 1)
 
 	pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%%7Csplit%%7Cearn&corsDomain=finance.yahoo.com"
 	url := fmt.Sprintf(pattern, _market.YahooQueryCode(company), end.Unix(), start.Unix())
@@ -39,39 +40,33 @@ func (yahoo YahooFinance) Crawl(_market market.Market, company market.Company, d
 	if err != nil {
 		return nil, err
 	}
-	// log.Print(quote)
-	// 校验
-	valid := yahoo.valid(quote)
-	if !valid {
-		return nil, ErrQuoteInvalid
-	}
 
-	// 计算时差
-	timeZoneDifference, err := yahoo.timeDifference(_market)
+	// 校验
+	err = yahoo.valid(quote)
 	if err != nil {
 		return nil, err
 	}
 
 	// 解析
-	return yahoo.parse(_market, company, date, quote, timeZoneDifference)
+	return yahoo.parse(_market, company, date, quote)
 }
 
 // valid 校验
-func (yahoo YahooFinance) valid(quote *YahooQuote) bool {
+func (yahoo YahooFinance) valid(quote *YahooQuote) error {
 
 	// 有错
 	if quote.Chart.Err != nil {
-		return false
+		return errors.New(quote.Chart.Err.Description)
 	}
 
 	// Result为空
 	if quote.Chart.Result == nil || len(quote.Chart.Result) == 0 {
-		return false
+		return errors.New("quote.Chart.Result is null")
 	}
 
 	// Quotes为空
 	if quote.Chart.Result[0].Indicators.Quotes == nil || len(quote.Chart.Result[0].Indicators.Quotes) == 0 {
-		return false
+		return errors.New("quote.Chart.Result[0].Indicators.Quotes is null")
 	}
 
 	result, _quote := quote.Chart.Result[0], quote.Chart.Result[0].Indicators.Quotes[0]
@@ -82,7 +77,7 @@ func (yahoo YahooFinance) valid(quote *YahooQuote) bool {
 		len(result.Timestamp) != len(_quote.High) ||
 		len(result.Timestamp) != len(_quote.Low) ||
 		len(result.Timestamp) != len(_quote.Volume) {
-		return false
+		return errors.New("Quotes数量不正确")
 	}
 
 	// TradingPeriods数量不正确
@@ -92,19 +87,26 @@ func (yahoo YahooFinance) valid(quote *YahooQuote) bool {
 		len(result.Meta.TradingPeriods.Posts[0]) == 0 ||
 		len(result.Meta.TradingPeriods.Regulars) == 0 ||
 		len(result.Meta.TradingPeriods.Regulars[0]) == 0 {
-		return false
+		return errors.New("TradingPeriods数量不正确")
 	}
 
-	return true
+	return nil
 }
 
 // parse 解析结果
-func (yahoo YahooFinance) parse(_market market.Market, company market.Company, date time.Time, quote *YahooQuote, timeZoneDifference int64) (*market.CompanyDailyQuote, error) {
+func (yahoo YahooFinance) parse(_market market.Market, company market.Company, date time.Time, quote *YahooQuote) (*market.CompanyDailyQuote, error) {
 
 	companyDailyQuote := market.CompanyDailyQuote{
 		Code: company.Code,
 		Name: company.Name,
 	}
+
+	_, localOffset := time.Now().Zone()
+	timestampOffset := quote.Chart.Result[0].Meta.GMTOffset - int64(localOffset)
+
+	// log.Printf("local offset:\t%d", localOffset)
+	// log.Printf("gmt offset:\t%d", quote.Chart.Result[0].Meta.GMTOffset)
+	// log.Printf("first timestamp:\t%d\t%s", quote.Chart.Result[0].Timestamp[0], time.Unix(quote.Chart.Result[0].Timestamp[0], 0).Format("2006-01-02 15:04"))
 
 	periods, _quote := quote.Chart.Result[0].Meta.TradingPeriods, quote.Chart.Result[0].Indicators.Quotes[0]
 	for index, ts := range quote.Chart.Result[0].Timestamp {
@@ -128,7 +130,7 @@ func (yahoo YahooFinance) parse(_market market.Market, company market.Company, d
 		}
 
 		series.Count++
-		series.Timestamp = append(series.Timestamp, uint32(ts+timeZoneDifference))
+		series.Timestamp = append(series.Timestamp, uint32(ts+timestampOffset))
 		series.Open = append(series.Open, uint32(_quote.Open[index]*100))
 		series.Close = append(series.Close, uint32(_quote.Close[index]*100))
 		series.Max = append(series.Max, uint32(_quote.High[index]*100))
@@ -139,30 +141,9 @@ func (yahoo YahooFinance) parse(_market market.Market, company market.Company, d
 	return &companyDailyQuote, nil
 }
 
-// timeDifference 计算时差
-func (yahoo YahooFinance) timeDifference(_market market.Market) (int64, error) {
-
-	now := time.Now()
-	// 服务器当前时区
-
-	//	获取市场所在时区
-	location, err := time.LoadLocation(_market.Timezone())
-	if err != nil {
-		return 0, err
-	}
-
-	//	市场所处时区当前时间
-	marketNow := now.In(location)
-
-	_, offsetLocal := now.Zone()
-	_, offsetMarket := marketNow.Zone()
-
-	return int64(offsetMarket - offsetLocal), nil
-}
-
 // ParallelMax 最大并发数
 func (yahoo YahooFinance) ParallelMax() int {
-	return 16
+	return 32
 }
 
 // RetryCount 失败重试次数
@@ -185,7 +166,7 @@ type YahooQuote struct {
 				ExchangeName         string  `json:"exchangeName"`
 				InstrumentType       string  `json:"instrumentType"`
 				FirstTradeDate       int64   `json:"firstTradeDate"`
-				GMTOffset            int     `json:"gmtoffset"`
+				GMTOffset            int64   `json:"gmtoffset"`
 				Timezone             string  `json:"timezone"`
 				PreviousClose        float32 `json:"previousClose"`
 				Scale                int     `json:"scale"`
@@ -194,19 +175,19 @@ type YahooQuote struct {
 						Timezone  string `json:"timezone"`
 						Start     int64  `json:"start"`
 						End       int64  `json:"end"`
-						GMTOffset int    `json:"gmtoffset"`
+						GMTOffset int64  `json:"gmtoffset"`
 					} `json:"pre"`
 					Regular struct {
 						Timezone  string `json:"timezone"`
 						Start     int64  `json:"start"`
 						End       int64  `json:"end"`
-						GMTOffset int    `json:"gmtoffset"`
+						GMTOffset int64  `json:"gmtoffset"`
 					} `json:"regular"`
 					Post struct {
 						Timezone  string `json:"timezone"`
 						Start     int64  `json:"start"`
 						End       int64  `json:"end"`
-						GMTOffset int    `json:"gmtoffset"`
+						GMTOffset int64  `json:"gmtoffset"`
 					} `json:"post"`
 				} `json:"currentTradingPeriod"`
 				TradingPeriods struct {
@@ -214,19 +195,19 @@ type YahooQuote struct {
 						Timezone  string `json:"timezone"`
 						Start     int64  `json:"start"`
 						End       int64  `json:"end"`
-						GMTOffset int    `json:"gmtoffset"`
+						GMTOffset int64  `json:"gmtoffset"`
 					} `json:"pre"`
 					Regulars [][]struct {
 						Timezone  string `json:"timezone"`
 						Start     int64  `json:"start"`
 						End       int64  `json:"end"`
-						GMTOffset int    `json:"gmtoffset"`
+						GMTOffset int64  `json:"gmtoffset"`
 					} `json:"regular"`
 					Posts [][]struct {
 						Timezone  string `json:"timezone"`
 						Start     int64  `json:"start"`
 						End       int64  `json:"end"`
-						GMTOffset int    `json:"gmtoffset"`
+						GMTOffset int64  `json:"gmtoffset"`
 					} `json:"post"`
 				} `json:"tradingPeriods"`
 				DataGranularity string   `json:"dataGranularity"`

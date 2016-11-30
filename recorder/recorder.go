@@ -208,11 +208,7 @@ func (mr marketRecorder) crawl(companies []market.Company, date time.Time) error
 
 		go func(_market market.Market, _company market.Company, _date time.Time) {
 			quote, err := mr.source.Crawl(_market, _company, _date)
-			if err != nil {
-				if err != source.ErrQuoteInvalid {
-					log.Print(err)
-				}
-			} else {
+			if err == nil {
 				dailyQuote.Quotes = append(dailyQuote.Quotes, *quote)
 			}
 
