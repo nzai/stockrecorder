@@ -104,10 +104,6 @@ func (yahoo YahooFinance) parse(_market market.Market, company market.Company, d
 	_, localOffset := time.Now().Zone()
 	timestampOffset := quote.Chart.Result[0].Meta.GMTOffset - int64(localOffset)
 
-	// log.Printf("local offset:\t%d", localOffset)
-	// log.Printf("gmt offset:\t%d", quote.Chart.Result[0].Meta.GMTOffset)
-	// log.Printf("first timestamp:\t%d\t%s", quote.Chart.Result[0].Timestamp[0], time.Unix(quote.Chart.Result[0].Timestamp[0], 0).Format("2006-01-02 15:04"))
-
 	periods, _quote := quote.Chart.Result[0].Meta.TradingPeriods, quote.Chart.Result[0].Indicators.Quotes[0]
 	for index, ts := range quote.Chart.Result[0].Timestamp {
 
