@@ -199,9 +199,12 @@ func (mr marketRecorder) crawl(companies []market.Company, date time.Time) error
 	var wg sync.WaitGroup
 	wg.Add(len(companies))
 
+	_, offset := date.Zone()
+
 	dailyQuote := market.DailyQuote{
-		Market: mr.Market,
-		Date:   date,
+		Market:    mr.Market,
+		Date:      date,
+		UTCOffset: offset,
 	}
 
 	for _, company := range companies {
