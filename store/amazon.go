@@ -48,7 +48,7 @@ func NewAmazonS3(s3config AmazonS3Config) AmazonS3 {
 
 	return AmazonS3{
 		config: s3config,
-		svc:    s3.New(sess, aws.NewConfig().WithRegion(s3config.Region)),
+		svc:    s3.New(sess, aws.NewConfig().WithRegion(s3config.Region).WithMaxRetries(10)),
 	}
 }
 
