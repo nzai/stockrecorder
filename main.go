@@ -29,13 +29,13 @@ func main() {
 
 	log.Print("启动市场监视任务")
 
-	// 创建记录器，使用雅虎财经作为数据源，亚马逊S3作为存储，监控美股、A股、港股
+	// 创建记录器，使用雅虎财经作为数据源，阿里云OSS作为存储，监控美股、A股、港股
 	r := recorder.NewRecorder(
-		source.YahooFinance{},               // 雅虎财经作为数据源
-		store.NewAmazonS3(config.Amazon.S3), // 亚马逊S3作为存储
-		market.America{},                    // 记录美股
-		market.China{},                      // A股
-		market.HongKong{},                   // 港股
+		source.YahooFinance{},                 // 雅虎财经作为数据源
+		store.NewAliyunOSS(config.Aliyun.OSS), // 阿里云OSS作为存储
+		market.America{},                      // 美股
+		market.China{},                        // A股
+		market.HongKong{},                     // 港股
 	)
 	r.RunAndWait()
 }

@@ -1,7 +1,7 @@
-amazon:
-    s3:
-        id: "AKIAJ4J2HSH26CL3B7HQ"
-        secret: "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"
-        region: "ap-northeast-2"
-        bucket: "stock-quote"
-        keyroot: ""
+aliyun:
+    oss:
+        endpoint: "endpoint"
+        id: "id"
+        secret: "secret"
+        bucket: "bucket"
+        keyroot: "keyroot"

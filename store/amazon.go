@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"strings"
 	"time"
 
@@ -100,8 +99,6 @@ func (s AmazonS3) Save(quote market.DailyQuote) error {
 		Body:         bytes.NewReader(unzipped),
 		StorageClass: aws.String(s3.ObjectStorageClassReducedRedundancy),
 	})
-
-	log.Printf("[%s] 上传了文件%s", quote.Market.Name(), s.savePath(quote.Market, quote.Date))
 
 	return err
 }

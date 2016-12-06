@@ -19,9 +19,9 @@ var (
 
 // Config 配置
 type Config struct {
-	Amazon struct {
-		S3 store.AmazonS3Config `yaml:"s3"`
-	} `yaml:"amazon"`
+	Aliyun struct {
+		OSS store.AliyunOSSConfig `yaml:"oss"`
+	} `yaml:"aliyun"`
 }
 
 // parseConfig 解析配置
