@@ -1,1 +1,7 @@
-dataDir: "c:\\data"
+aliyun:
+    oss:
+        endpoint: "endpoint"
+        id: "id"
+        secret: "secret"
+        bucket: "bucket"
+        keyroot: "keyroot"

@@ -3,9 +3,11 @@ package main
 import (
 	"log"
 	"runtime/debug"
-	"sync"
 
-	"github.com/nzai/stockrecorder/config"
+	"github.com/nzai/stockrecorder/market"
+	"github.com/nzai/stockrecorder/recorder"
+	"github.com/nzai/stockrecorder/source"
+	"github.com/nzai/stockrecorder/store"
 )
 
 func main() {
@@ -20,29 +22,20 @@ func main() {
 	}()
 
 	//	读取配置文件
-	conf, err := config.Parse()
+	config, err := parseConfig()
 	if err != nil {
 		log.Fatal("读取配置文件错误: ", err)
 	}
 
 	log.Print("启动市场监视任务")
 
-	// //	美国股市
-	// market.Add(market.America{})
-	// //	中国股市
-	// market.Add(market.China{})
-	// //	香港股市
-	// market.Add(market.HongKong{})
-
-	// //	启动监视
-	// err = market.Monitor()
-	// if err != nil {
-	// 	log.Printf("启动市场监视任务时发生错误: %s", err.Error())
-	// }
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	wg.Wait()
-
+	// 创建记录器，使用雅虎财经作为数据源，阿里云OSS作为存储，监控美股、A股、港股
+	r := recorder.NewRecorder(
+		source.NewYahooFinance(),              // 雅虎财经作为数据源
+		store.NewAliyunOSS(config.Aliyun.OSS), // 阿里云OSS作为存储
+		market.America{},                      // 美股
+		market.China{},                        // A股
+		market.HongKong{},                     // 港股
+	)
+	r.RunAndWait()
 }
