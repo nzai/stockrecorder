@@ -73,15 +73,14 @@ func (mr marketRecorder) RunAndWait() {
 	// 持续抓取每日数据
 	for {
 		log.Printf("[%s] 定时任务已启动，将于%s后激活下一次任务", mr.Name(), duration.String())
-
 		<-time.After(duration)
-		now = mr.marketNow()
-		log.Printf("[%s] 获取%s的数据开始", mr.Name(), now.Format(datePattern))
-		err := mr.crawlYesterdayData(now.Add(-time.Hour * 24))
+		yesterday := mr.marketNow().AddDate(0, 0, -1)
+		log.Printf("[%s] 获取%s的数据开始", mr.Name(), yesterday.Format(datePattern))
+		err := mr.crawlYesterdayData(yesterday)
 		if err != nil {
-			log.Printf("[%s] 获取%s的数据时发生错误: %v", mr.Name(), now.Format(datePattern), err)
+			log.Printf("[%s] 获取%s的数据时发生错误: %v", mr.Name(), yesterday.Format(datePattern), err)
 		} else {
-			log.Printf("[%s] 获取%s的数据结束", mr.Name(), now.Format(datePattern))
+			log.Printf("[%s] 获取%s的数据结束", mr.Name(), yesterday.Format(datePattern))
 		}
 
 		// 每天调整延时时长，保证长时间运行的时间精度
