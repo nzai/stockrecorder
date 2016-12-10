@@ -13,9 +13,14 @@ import (
 // YahooFinance 雅虎财经数据源
 type YahooFinance struct{}
 
+// NewYahooFinance 新建雅虎财经数据源
+func NewYahooFinance() YahooFinance {
+	return YahooFinance{}
+}
+
 // Expiration 最早能查到60天前的数据
 func (yahoo YahooFinance) Expiration() time.Duration {
-	return time.Hour * 24 * 60
+	return time.Hour * 24 * 30
 }
 
 // Crawl 获取公司每天的报价
@@ -101,9 +106,6 @@ func (yahoo YahooFinance) parse(_market market.Market, company market.Company, d
 		Name: company.Name,
 	}
 
-	_, localOffset := time.Now().Zone()
-	timestampOffset := quote.Chart.Result[0].Meta.GMTOffset - int64(localOffset)
-
 	periods, _quote := quote.Chart.Result[0].Meta.TradingPeriods, quote.Chart.Result[0].Indicators.Quotes[0]
 	for index, ts := range quote.Chart.Result[0].Timestamp {
 
@@ -126,7 +128,7 @@ func (yahoo YahooFinance) parse(_market market.Market, company market.Company, d
 		}
 
 		series.Count++
-		series.Timestamp = append(series.Timestamp, uint32(ts+timestampOffset))
+		series.Timestamp = append(series.Timestamp, uint32(ts))
 		series.Open = append(series.Open, uint32(_quote.Open[index]*100))
 		series.Close = append(series.Close, uint32(_quote.Close[index]*100))
 		series.Max = append(series.Max, uint32(_quote.High[index]*100))

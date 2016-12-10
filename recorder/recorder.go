@@ -52,8 +52,45 @@ type marketRecorder struct {
 	market.Market               // 市场
 }
 
-//	市场所处时区当前时间
-func (mr marketRecorder) Now() time.Time {
+// RunAndWait 启动市场记录器
+func (mr marketRecorder) RunAndWait() {
+
+	// 获取市场所在地到明天零点的时间差
+	now := mr.marketNow()
+	duration := mr.durationToNextDay(now)
+
+	// 抓取历史数据
+	go func(todayZero time.Time) {
+		log.Printf("[%s] 获取历史数据开始", mr.Name())
+		err := mr.crawlHistoryData(todayZero)
+		if err != nil {
+			log.Printf("[%s] 获取历史数据时发生错误: %v", mr.Name(), err)
+			return
+		}
+		log.Printf("[%s] 获取历史数据结束", mr.Name())
+	}(now.Add(duration).AddDate(0, 0, -1))
+
+	// 持续抓取每日数据
+	for {
+		log.Printf("[%s] 定时任务已启动，将于%s后激活下一次任务", mr.Name(), duration.String())
+
+		<-time.After(duration)
+		now = mr.marketNow()
+		log.Printf("[%s] 获取%s的数据开始", mr.Name(), now.Format(datePattern))
+		err := mr.crawlYesterdayData(now.Add(-time.Hour * 24))
+		if err != nil {
+			log.Printf("[%s] 获取%s的数据时发生错误: %v", mr.Name(), now.Format(datePattern), err)
+		} else {
+			log.Printf("[%s] 获取%s的数据结束", mr.Name(), now.Format(datePattern))
+		}
+
+		// 每天调整延时时长，保证长时间运行的时间精度
+		duration = mr.durationToNextDay(mr.marketNow())
+	}
+}
+
+// marketNow 市场所处时区当前时间
+func (mr marketRecorder) marketNow() time.Time {
 	now := time.Now()
 
 	//	获取市场所在时区
@@ -65,70 +102,19 @@ func (mr marketRecorder) Now() time.Time {
 	return now.In(location)
 }
 
-// RunAndWait 启动市场记录器
-func (mr marketRecorder) RunAndWait() {
-
-	// 获取市场所在地到明天零点的时间差
-	now := mr.Now()
-	duration, err := mr.durationToNextDay(now)
-	if err != nil {
-		log.Printf("[%s] 获取市场所在地到明天零点的时间差时发生错误: %v", mr.Name(), err)
-		return
-	}
-
-	// 抓取历史数据
-	go func(_now time.Time, _duration time.Duration) {
-		log.Printf("[%s] 获取历史数据开始", mr.Name())
-		err = mr.crawlHistoryData(_now, _duration)
-		if err != nil {
-			log.Printf("[%s] 获取历史数据时发生错误: %v", mr.Name(), err)
-			return
-		}
-		log.Printf("[%s] 获取历史数据结束", mr.Name())
-	}(now, duration)
-
-	// 持续抓取每日数据
-	for {
-		log.Printf("[%s] 定时任务已启动，将于%s后激活下一次任务", mr.Name(), duration.String())
-		now = <-time.After(duration)
-		log.Printf("[%s] 获取%s的数据开始", mr.Name(), now.Format(datePattern))
-		err = mr.crawlYesterdayData(now.Add(-time.Hour * 24))
-		if err != nil {
-			log.Printf("[%s] 获取%s的数据时发生错误: %v", mr.Name(), now.Format(datePattern), err)
-		} else {
-			log.Printf("[%s] 获取%s的数据结束", mr.Name(), now.Format(datePattern))
-		}
-
-		// 每天调整延时时长，保证长时间运行的时间精度
-		duration, err = mr.durationToNextDay(time.Now())
-		if err != nil {
-			log.Printf("[%s] 获取市场所在地到明天零点的时间差时发生错误: %v", mr.Name(), err)
-			return
-		}
-	}
-}
-
 // durationToNextDay 现在到明天0点的时间间隔
-func (mr marketRecorder) durationToNextDay(now time.Time) (time.Duration, error) {
+func (mr marketRecorder) durationToNextDay(now time.Time) time.Duration {
 
-	//	获取市场所在时区
-	location, err := time.LoadLocation(mr.Timezone())
-	if err != nil {
-		return 0, err
-	}
-
-	//	市场所处时区当前时间
-	marketNow := now.In(location)
-	year, month, day := marketNow.AddDate(0, 0, 1).Date()
+	year, month, day := now.AddDate(0, 0, 1).Date()
 
 	// 市场所处时区的下一个0点
-	marketTomorrowZero := time.Date(year, month, day, 0, 0, 0, 0, location)
+	marketTomorrowZero := time.Date(year, month, day, 0, 0, 0, 0, now.Location())
 
-	return marketTomorrowZero.Sub(marketNow), nil
+	return marketTomorrowZero.Sub(now)
 }
 
-// getHistoryData 抓取历史数据
-func (mr marketRecorder) crawlHistoryData(now time.Time, dur time.Duration) error {
+// crawlHistoryData 抓取历史数据
+func (mr marketRecorder) crawlHistoryData(todayZero time.Time) error {
 
 	// 获取上市公司
 	companies, err := mr.Market.Companies()
@@ -137,40 +123,34 @@ func (mr marketRecorder) crawlHistoryData(now time.Time, dur time.Duration) erro
 	}
 	log.Printf("[%s] 共有%d家上市公司", mr.Name(), len(companies))
 
-	// 结束日期(昨天0点,不含)
-	endDate := now.Add(dur).AddDate(0, 0, -2)
 	// 起始日期(含)
-	startDate := endDate.Add(-mr.source.Expiration())
-	log.Printf("[%s]抓取历史数据起始日期: %s  结束日期: %s", mr.Name(), startDate.Format(datePattern), endDate.Format(datePattern))
+	date := todayZero.Add(-mr.source.Expiration())
+	log.Printf("[%s]抓取历史数据起始日期: %s  结束日期: %s", mr.Name(), date.Format(datePattern), todayZero.Format(datePattern))
 
-	for !startDate.After(endDate) {
+	for date.Before(todayZero) {
 
 		// 避免重复记录
-		recorded, err := mr.store.Exists(mr.Market, startDate)
+		exists, err := mr.store.Exists(mr.Market, date)
 		if err != nil {
 			return err
 		}
 
-		if recorded {
-			// 后移一天
-			startDate = startDate.AddDate(0, 0, 1)
-			continue
-		}
-
-		// 抓取那一天的报价
-		err = mr.crawl(companies, startDate)
-		if err != nil {
-			return err
+		if !exists {
+			// 抓取那一天的报价
+			err = mr.crawl(companies, date)
+			if err != nil {
+				return err
+			}
 		}
 
 		// 后移一天
-		startDate = startDate.AddDate(0, 0, 1)
+		date = date.AddDate(0, 0, 1)
 	}
 
 	return nil
 }
 
-// startDailyTask 每天0点抓取前一天的数据
+// crawlYesterdayData 每天0点抓取前一天的数据
 func (mr marketRecorder) crawlYesterdayData(yesterday time.Time) error {
 
 	// 避免重复记录

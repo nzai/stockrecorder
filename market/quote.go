@@ -3,6 +3,7 @@ package market
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 )
@@ -137,6 +138,16 @@ func (q CompanyDailyQuote) Equal(s CompanyDailyQuote) error {
 	}
 
 	return nil
+}
+
+// Glance 显示摘要
+func (q CompanyDailyQuote) Glance(logger *log.Logger, location *time.Location) {
+
+	logger.Printf("上市公司:%s\t%s", q.Code, q.Name)
+	q.Pre.Glance(logger, "Pre", location)
+	q.Regular.Glance(logger, "Regular", location)
+	q.Post.Glance(logger, "Post", location)
+	logger.Println("")
 }
 
 // QuoteSeries 报价序列
@@ -275,4 +286,39 @@ func (s QuoteSeries) arrayEqual(a []uint32, b []uint32) error {
 	}
 
 	return nil
+}
+
+// Glance 显示摘要
+func (s QuoteSeries) Glance(logger *log.Logger, title string, location *time.Location) {
+	count := 5
+	if s.Count < 5 {
+		count = int(s.Count)
+	}
+
+	logger.Printf("%s Count: %d", title, s.Count)
+	for index := 0; index < count; index++ {
+		logger.Printf("%s FIRST [%d]: time:%s\topen:%.2f\tclose:%.2f\tmax:%.2f\tmin:%.2f\tvolume:%d",
+			title,
+			index,
+			time.Unix(int64(s.Timestamp[index]), 0).In(location).Format("2006-01-02 15:04:05"),
+			float32(s.Open[index])/100,
+			float32(s.Close[index])/100,
+			float32(s.Max[index])/100,
+			float32(s.Min[index])/100,
+			s.Volume[index],
+		)
+	}
+
+	for index := int(s.Count) - count; index < int(s.Count); index++ {
+		logger.Printf("%s LAST [%d]: time:%s\topen:%.2f\tclose:%.2f\tmax:%.2f\tmin:%.2f\tvolume:%d",
+			title,
+			index,
+			time.Unix(int64(s.Timestamp[index]), 0).In(location).Format("2006-01-02 15:04:05"),
+			float32(s.Open[index])/100,
+			float32(s.Close[index])/100,
+			float32(s.Max[index])/100,
+			float32(s.Min[index])/100,
+			s.Volume[index],
+		)
+	}
 }

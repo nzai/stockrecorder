@@ -31,7 +31,7 @@ func main() {
 
 	// 创建记录器，使用雅虎财经作为数据源，阿里云OSS作为存储，监控美股、A股、港股
 	r := recorder.NewRecorder(
-		source.YahooFinance{},                 // 雅虎财经作为数据源
+		source.NewYahooFinance(),              // 雅虎财经作为数据源
 		store.NewAliyunOSS(config.Aliyun.OSS), // 阿里云OSS作为存储
 		market.America{},                      // 美股
 		market.China{},                        // A股
