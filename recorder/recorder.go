@@ -115,16 +115,16 @@ func (mr marketRecorder) durationToNextDay(now time.Time) time.Duration {
 // crawlHistoryData 抓取历史数据
 func (mr marketRecorder) crawlHistoryData(todayZero time.Time) error {
 
+	// 起始日期(含)
+	date := todayZero.Add(-mr.source.Expiration())
+	log.Printf("[%s]抓取历史数据起始日期: %s  结束日期: %s", mr.Name(), date.Format(datePattern), todayZero.Format(datePattern))
+
 	// 获取上市公司
 	companies, err := mr.Market.Companies()
 	if err != nil {
 		return err
 	}
 	log.Printf("[%s] 共有%d家上市公司", mr.Name(), len(companies))
-
-	// 起始日期(含)
-	date := todayZero.Add(-mr.source.Expiration())
-	log.Printf("[%s]抓取历史数据起始日期: %s  结束日期: %s", mr.Name(), date.Format(datePattern), todayZero.Format(datePattern))
 
 	for date.Before(todayZero) {
 
