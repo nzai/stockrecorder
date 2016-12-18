@@ -87,7 +87,7 @@ func (s AmazonS3) Save(quote market.DailyQuote) error {
 	w.Flush()
 	w.Close()
 
-	unzipped, err := ioutil.ReadAll(buffer)
+	zipped, err := ioutil.ReadAll(buffer)
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func (s AmazonS3) Save(quote market.DailyQuote) error {
 	_, err = s.svc.PutObject(&s3.PutObjectInput{
 		Bucket:       aws.String(s.config.Bucket),
 		Key:          aws.String(s.savePath(quote.Market, quote.Date)),
-		Body:         bytes.NewReader(unzipped),
+		Body:         bytes.NewReader(zipped),
 		StorageClass: aws.String(s3.ObjectStorageClassReducedRedundancy),
 	})
 

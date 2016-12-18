@@ -71,13 +71,13 @@ func (s AliyunOSS) Save(quote market.DailyQuote) error {
 	w.Flush()
 	w.Close()
 
-	unzipped, err := ioutil.ReadAll(buffer)
+	zipped, err := ioutil.ReadAll(buffer)
 	if err != nil {
 		return err
 	}
 
 	// 上传
-	return s.bucket.PutObject(s.objectKey(quote.Market, quote.Date), bytes.NewReader(unzipped))
+	return s.bucket.PutObject(s.objectKey(quote.Market, quote.Date), bytes.NewReader(zipped))
 }
 
 // Load 读取
