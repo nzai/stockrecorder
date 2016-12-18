@@ -79,3 +79,30 @@ func (s AliyunOSS) Save(quote market.DailyQuote) error {
 	// 上传
 	return s.bucket.PutObject(s.objectKey(quote.Market, quote.Date), bytes.NewReader(unzipped))
 }
+
+// Load 读取
+func (s AliyunOSS) Load(_market market.Market, date time.Time) (market.DailyQuote, error) {
+
+	mdq := market.DailyQuote{Market: _market, Date: date}
+
+	readCloser, err := s.bucket.GetObject(s.objectKey(_market, date))
+	if err != nil {
+		return mdq, err
+	}
+	defer readCloser.Close()
+
+	reader, err := gzip.NewReader(readCloser)
+	if err != nil {
+		return mdq, err
+	}
+	defer reader.Close()
+
+	buffer, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return mdq, err
+	}
+
+	mdq.Unmarshal(buffer)
+
+	return mdq, nil
+}

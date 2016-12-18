@@ -12,4 +12,6 @@ type Store interface {
 	Exists(_market market.Market, date time.Time) (bool, error)
 	// 保存
 	Save(quote market.DailyQuote) error
+	// 读取
+	Load(_market market.Market, date time.Time) (market.DailyQuote, error)
 }

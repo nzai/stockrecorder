@@ -107,3 +107,33 @@ func (s AmazonS3) Save(quote market.DailyQuote) error {
 func (s AmazonS3) savePath(_market market.Market, date time.Time) string {
 	return fmt.Sprintf("%s%s/%s.mdq", s.config.KeyRoot, date.Format("2006/01/02"), strings.ToLower(_market.Name()))
 }
+
+// Load 读取
+func (s AmazonS3) Load(_market market.Market, date time.Time) (market.DailyQuote, error) {
+
+	mdq := market.DailyQuote{Market: _market, Date: date}
+
+	output, err := s.svc.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(s.config.Bucket),
+		Key:    aws.String(s.savePath(_market, date)),
+	})
+	if err != nil {
+		return mdq, err
+	}
+	defer output.Body.Close()
+
+	reader, err := gzip.NewReader(output.Body)
+	if err != nil {
+		return mdq, err
+	}
+	defer reader.Close()
+
+	buffer, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return mdq, err
+	}
+
+	mdq.Unmarshal(buffer)
+
+	return mdq, nil
+}
