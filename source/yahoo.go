@@ -101,10 +101,7 @@ func (yahoo YahooFinance) valid(quote *YahooQuote) error {
 // parse 解析结果
 func (yahoo YahooFinance) parse(_market market.Market, company market.Company, date time.Time, quote *YahooQuote) (*market.CompanyDailyQuote, error) {
 
-	companyDailyQuote := market.CompanyDailyQuote{
-		Code: company.Code,
-		Name: company.Name,
-	}
+	companyDailyQuote := market.CompanyDailyQuote{Company: company}
 
 	periods, _quote := quote.Chart.Result[0].Meta.TradingPeriods, quote.Chart.Result[0].Indicators.Quotes[0]
 	for index, ts := range quote.Chart.Result[0].Timestamp {
