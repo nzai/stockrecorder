@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 )
 
@@ -37,7 +36,7 @@ func (q DailyQuote) Marshal() []byte {
 func (q *DailyQuote) Unmarshal(buffer []byte) {
 
 	q.UTCOffset = int(binary.BigEndian.Uint32(buffer[:4])) - 43200
-	q.Date = time.Unix(int64(binary.BigEndian.Uint32(buffer[4:8])+000), 0)
+	q.Date = time.Unix(int64(binary.BigEndian.Uint32(buffer[4:8])), 0)
 	count := binary.BigEndian.Uint32(buffer[8:12])
 
 	for index := 0; index < int(count); index++ {
@@ -76,8 +75,7 @@ func (q DailyQuote) Equal(s DailyQuote) error {
 
 // CompanyDailyQuote 公司每日报价
 type CompanyDailyQuote struct {
-	Code    string
-	Name    string
+	Company
 	Pre     QuoteSeries
 	Regular QuoteSeries
 	Post    QuoteSeries
@@ -85,14 +83,8 @@ type CompanyDailyQuote struct {
 
 // Marshal 序列化
 func (q CompanyDailyQuote) Marshal() []byte {
-	name := []byte(q.Name)
 
-	buffer := make([]byte, 19+len(name))
-	copy(buffer[:16], []byte(q.Code))
-	binary.BigEndian.PutUint16(buffer[16:18], uint16(len(name)))
-	copy(buffer[18:18+len(name)], name)
-	buffer[18+len(name)] = 0
-
+	buffer := q.Company.Marshal()
 	buffer = append(buffer, q.Pre.Marshal()...)
 	buffer = append(buffer, q.Regular.Marshal()...)
 	buffer = append(buffer, q.Post.Marshal()...)
@@ -102,14 +94,11 @@ func (q CompanyDailyQuote) Marshal() []byte {
 
 // Unmarshal 反序列化
 func (q *CompanyDailyQuote) Unmarshal(buffer []byte) {
-	q.Code = strings.Trim(string(buffer[:16]), string(0x0))
-	nameLen := binary.BigEndian.Uint16(buffer[16:18])
-	q.Name = strings.Trim(string(buffer[18:18+nameLen]), string(0x0))
 
-	quotePos := int(19 + nameLen)
-	q.Pre.Unmarshal(buffer[quotePos:])
-	q.Regular.Unmarshal(buffer[quotePos+q.Pre.Len():])
-	q.Post.Unmarshal(buffer[quotePos+q.Pre.Len()+q.Regular.Len():])
+	companySize := q.Company.Unmarshal(buffer)
+	q.Pre.Unmarshal(buffer[companySize:])
+	q.Regular.Unmarshal(buffer[companySize+q.Pre.Len():])
+	q.Post.Unmarshal(buffer[companySize+q.Pre.Len()+q.Regular.Len():])
 }
 
 // Equal 判断是否相等

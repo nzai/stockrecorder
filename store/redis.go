@@ -171,7 +171,7 @@ func (s Redis) Load(_market market.Market, date time.Time) (market.DailyQuote, e
 // loadCompanyDailyQuote 读取公司报价
 func (s Redis) loadCompanyDailyQuote(_market market.Market, date time.Time, code string) (market.CompanyDailyQuote, error) {
 
-	cdq := market.CompanyDailyQuote{Code: strings.ToUpper(code)}
+	cdq := market.CompanyDailyQuote{Company: market.Company{Code: strings.ToUpper(code)}}
 
 	// key:america:20160101:aapl:name value:Apple Inc.
 	nameKey := fmt.Sprintf("%s:%s:%s:name", strings.ToLower(_market.Name()), date.Format("20060102"), strings.ToLower(code))

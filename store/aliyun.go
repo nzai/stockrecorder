@@ -51,7 +51,6 @@ func (s AliyunOSS) objectKey(_market market.Market, date time.Time) string {
 
 // Exists 判断是否存在
 func (s AliyunOSS) Exists(_market market.Market, date time.Time) (bool, error) {
-
 	return s.bucket.IsObjectExist(s.objectKey(_market, date))
 }
 

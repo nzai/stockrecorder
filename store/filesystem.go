@@ -1,10 +1,6 @@
 package store
 
 import (
-	"bytes"
-	"compress/gzip"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -46,27 +42,7 @@ func (s FileSystem) Exists(_market market.Market, date time.Time) (bool, error) 
 
 // Save 保存
 func (s FileSystem) Save(quote market.DailyQuote) error {
-
-	// gzip 最高压缩
-	buffer := new(bytes.Buffer)
-	w, err := gzip.NewWriterLevel(buffer, gzip.BestCompression)
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(quote.Marshal())
-	if err != nil {
-		return err
-	}
-	w.Flush()
-	w.Close()
-
-	zipped, err := ioutil.ReadAll(buffer)
-	if err != nil {
-		return err
-	}
-
-	// 存盘
-	return io.WriteBytes(s.storePath(quote.Market, quote.Date), zipped)
+	return io.WriteGzipBytes(s.storePath(quote.Market, quote.Date), quote.Marshal())
 }
 
 // Load 读取
@@ -74,19 +50,7 @@ func (s FileSystem) Load(_market market.Market, date time.Time) (market.DailyQuo
 
 	mdq := market.DailyQuote{Market: _market, Date: date}
 
-	file, err := os.Open(s.storePath(_market, date))
-	if err != nil {
-		return mdq, err
-	}
-	defer file.Close()
-
-	reader, err := gzip.NewReader(file)
-	if err != nil {
-		return mdq, err
-	}
-	defer reader.Close()
-
-	buffer, err := ioutil.ReadAll(reader)
+	buffer, err := io.ReadAllGzipBytes(s.storePath(_market, date))
 	if err != nil {
 		return mdq, err
 	}
