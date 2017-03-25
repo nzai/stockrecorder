@@ -152,22 +152,22 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "tR0YPWagaCwuATJbNQ2k2UrpJKw=",
+			"checksumSHA1": "hEt+/I/AlIQHPCCvTe3wvopRjnE=",
 			"path": "github.com/nzai/go-utility/io",
-			"revision": "3512002a716efe82add08efa40db7697f15321f7",
-			"revisionTime": "2017-01-03T16:36:19Z"
+			"revision": "fbe75b95c089a780e9db753206475c9700b07b91",
+			"revisionTime": "2017-03-25T07:36:43Z"
 		},
 		{
-			"checksumSHA1": "ClTlYNyF4W27I3OUybrRBLdYurw=",
+			"checksumSHA1": "ckxlFaNngkL0Ol8qiwA6Q/cGS3M=",
 			"path": "github.com/nzai/go-utility/net",
-			"revision": "3512002a716efe82add08efa40db7697f15321f7",
-			"revisionTime": "2017-01-03T16:36:19Z"
+			"revision": "fbe75b95c089a780e9db753206475c9700b07b91",
+			"revisionTime": "2017-03-25T07:36:43Z"
 		},
 		{
-			"checksumSHA1": "43erNGiBAcJsmRvjc1sfawt1/RA=",
+			"checksumSHA1": "XfR5IQtDRmh510AWlSE2o84Ps9U=",
 			"path": "github.com/nzai/go-utility/path",
-			"revision": "3512002a716efe82add08efa40db7697f15321f7",
-			"revisionTime": "2017-01-03T16:36:19Z"
+			"revision": "fbe75b95c089a780e9db753206475c9700b07b91",
+			"revisionTime": "2017-03-25T07:36:43Z"
 		},
 		{
 			"checksumSHA1": "IMaQe1a1f7QRWeMso2HYFx0oGI4=",

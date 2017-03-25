@@ -171,7 +171,7 @@ func ReadAllGzipBytes(filePath string) ([]byte, error) {
 	}
 	defer reader.Close()
 
-	return ReadAllBytes(filePath)
+	return ioutil.ReadAll(reader)
 }
 
 // ReadAllString 从文件中读取字符串
