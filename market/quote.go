@@ -17,7 +17,6 @@ type DailyQuote struct {
 
 // Marshal 序列化
 func (q DailyQuote) Marshal() []byte {
-
 	count := uint32(len(q.Quotes))
 	buffer := make([]byte, 12+count*4)
 	binary.BigEndian.PutUint32(buffer[:4], uint32(q.UTCOffset+43200))
@@ -35,8 +34,14 @@ func (q DailyQuote) Marshal() []byte {
 // Unmarshal 反序列化
 func (q *DailyQuote) Unmarshal(buffer []byte) {
 
+	//	获取市场所在时区
+	location, err := time.LoadLocation(q.Market.Timezone())
+	if err != nil {
+		location = time.Local
+	}
+
 	q.UTCOffset = int(binary.BigEndian.Uint32(buffer[:4])) - 43200
-	q.Date = time.Unix(int64(binary.BigEndian.Uint32(buffer[4:8])), 0)
+	q.Date = time.Unix(int64(binary.BigEndian.Uint32(buffer[4:8])), 0).In(location)
 	count := binary.BigEndian.Uint32(buffer[8:12])
 
 	for index := 0; index < int(count); index++ {
