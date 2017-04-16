@@ -1,6 +1,9 @@
 package market
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 const (
 	retryTimes           = 50
@@ -26,15 +29,15 @@ var (
 )
 
 // Get 获取市场
-func Get(name string) (*Market, error) {
+func Get(name string) (Market, error) {
 
 	markets := []Market{America{}, China{}, HongKong{}}
 	for _, market := range markets {
-		if market.Name() != name {
+		if strings.ToLower(market.Name()) != strings.ToLower(name) {
 			continue
 		}
 
-		return &market, nil
+		return market, nil
 	}
 
 	return nil, ErrUnknownMarket
