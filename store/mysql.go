@@ -68,7 +68,7 @@ func (s Mysql) saveQuote(tx *sql.Tx, quote market.DailyQuote) error {
 
 	quotes := quote.ToQuote()
 
-	stmt, err := s.db.Prepare("insert into quote(type,`key`,start,duration,open,close,max,min,volume) values(?,?,?,?,?,?,?,?,?")
+	stmt, err := s.db.Prepare("insert into quote(type,`key`,start,duration,open,close,max,min,volume) values(?,?,?,?,?,?,?,?,?)")
 	if err != nil {
 		return err
 	}
