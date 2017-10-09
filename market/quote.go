@@ -1,9 +1,11 @@
 package market
 
 import (
+	"database/sql"
 	"encoding/binary"
 	"fmt"
 	"log"
+	"math"
 	"time"
 )
 
@@ -78,6 +80,45 @@ func (q DailyQuote) Equal(s DailyQuote) error {
 	return nil
 }
 
+// ToQuote 转换为Quote
+func (q DailyQuote) ToQuote() []Quote {
+
+	var quotes []Quote
+	for _, quote := range q.Quotes {
+		quotes = append(quotes, quote.ToQuote(q.Market, q.Date)...)
+	}
+
+	return quotes
+}
+
+// FromQuote 从Quote还原
+func (q *DailyQuote) FromQuote(_market Market, date time.Time, quotes []Quote) {
+
+	q.Market = _market
+	q.Date = date
+
+	_, offset := date.Zone()
+	q.UTCOffset = offset
+
+	var lastCode string
+	var lastStart int
+	for index, quote := range quotes {
+
+		if quote.Key == lastCode || lastStart == 0 {
+			continue
+		}
+
+		var cq CompanyDailyQuote
+		cq.FromQuote(quotes[lastStart:index])
+
+		q.Quotes = append(q.Quotes, cq)
+
+		lastCode = quote.Key
+		lastStart = index
+	}
+
+}
+
 // CompanyDailyQuote 公司每日报价
 type CompanyDailyQuote struct {
 	Company
@@ -132,6 +173,31 @@ func (q CompanyDailyQuote) Equal(s CompanyDailyQuote) error {
 	}
 
 	return nil
+}
+
+// ToQuote 转换为Quote
+func (q CompanyDailyQuote) ToQuote(_market Market, date time.Time) []Quote {
+
+	// 转换为Quote时只算Regular
+	quotes, summary := q.Regular.ToQuote(_market, q.Company, date)
+	summary.Type = _market.Name()
+	summary.Key = q.Company.Code
+	summary.Start = date.Unix()
+	summary.Duration = int64(time.Hour) * 24
+
+	return append([]Quote{summary}, quotes...)
+}
+
+// FromQuote 从Quote还原
+func (q *CompanyDailyQuote) FromQuote(quotes []Quote) {
+
+	if len(quotes) == 0 {
+		return
+	}
+
+	// 还原时只还原Regular
+	q.Company.Code = quotes[0].Key
+	q.Regular.FromQuote(quotes)
 }
 
 // Glance 显示摘要
@@ -282,6 +348,69 @@ func (s QuoteSeries) arrayEqual(a []uint32, b []uint32) error {
 	return nil
 }
 
+// ToQuote 转换为Quote
+func (s QuoteSeries) ToQuote(_market Market, company Company, date time.Time) ([]Quote, Quote) {
+
+	quotes := make([]Quote, int(s.Count))
+	summary := Quote{
+		Max: float32(-math.MaxFloat32),
+		Min: float32(math.MaxFloat32),
+	}
+
+	for index := 0; index < int(s.Count); index++ {
+		quotes[index] = Quote{
+			Type:     _market.Name(),
+			Key:      company.Code,
+			Start:    int64(s.Timestamp[index]),
+			Duration: int64(time.Minute),
+			Open:     float32(s.Open[index]) / 100,
+			Close:    float32(s.Close[index]) / 100,
+			Max:      float32(s.Max[index]) / 100,
+			Min:      float32(s.Min[index]) / 100,
+			Volume:   int64(s.Volume[index]),
+		}
+
+		if index == 0 {
+			summary.Open = quotes[index].Open
+		}
+		summary.Close = quotes[index].Close
+
+		if summary.Max < quotes[index].Max {
+			summary.Max = quotes[index].Max
+		}
+
+		if summary.Min > quotes[index].Min {
+			summary.Min = quotes[index].Min
+		}
+
+		summary.Volume += quotes[index].Volume
+	}
+
+	return quotes, summary
+}
+
+// FromQuote 从Quote转换
+func (s *QuoteSeries) FromQuote(quotes []Quote) {
+
+	count := len(quotes)
+	s.Count = uint32(count)
+	s.Timestamp = make([]uint32, count)
+	s.Open = make([]uint32, count)
+	s.Close = make([]uint32, count)
+	s.Max = make([]uint32, count)
+	s.Min = make([]uint32, count)
+	s.Volume = make([]uint32, count)
+
+	for index, quote := range quotes {
+		s.Timestamp[index] = uint32(quote.Start)
+		s.Open[index] = uint32(quote.Open * 100)
+		s.Close[index] = uint32(quote.Close * 100)
+		s.Max[index] = uint32(quote.Max * 100)
+		s.Min[index] = uint32(quote.Min * 100)
+		s.Volume[index] = uint32(quote.Volume)
+	}
+}
+
 // Glance 显示摘要
 func (s QuoteSeries) Glance(logger *log.Logger, title string, location *time.Location) {
 	count := 5
@@ -315,4 +444,23 @@ func (s QuoteSeries) Glance(logger *log.Logger, title string, location *time.Loc
 			s.Volume[index],
 		)
 	}
+}
+
+// Quote 报价
+type Quote struct {
+	ID       int64
+	Type     string
+	Key      string
+	Start    int64
+	Duration int64
+	Open     float32
+	Close    float32
+	Max      float32
+	Min      float32
+	Volume   int64
+}
+
+// ScanRows 读取
+func (q *Quote) ScanRows(rows *sql.Rows) error {
+	return rows.Scan(&q.ID, &q.Type, &q.Key, &q.Start, &q.Duration, &q.Open, &q.Close, &q.Max, &q.Min, &q.Volume)
 }
