@@ -113,7 +113,7 @@ func (s Mysql) Load(_market market.Market, date time.Time) (market.DailyQuote, e
 
 func (s Mysql) loadCompany(_market market.Market, date time.Time) ([]market.Quote, error) {
 
-	rows, err := s.db.Query("select id, type, key, start, duration, open, close, max, min, volume from quote where type = ? and start >= ? and start < ? duration = ? order by key asc, start asc",
+	rows, err := s.db.Query("select id, type, `key`, start, duration, open, close, max, min, volume from quote where type = ? and start >= ? and start < ? duration = ? order by `key` asc, start asc",
 		_market.Name(),
 		date.Unix(),
 		date.AddDate(0, 0, 1).Unix(),
