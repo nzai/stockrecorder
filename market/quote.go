@@ -183,7 +183,7 @@ func (q CompanyDailyQuote) ToQuote(_market Market, date time.Time) []Quote {
 	summary.Type = _market.Name()
 	summary.Key = q.Company.Code
 	summary.Start = date.Unix()
-	summary.Duration = int64(time.Hour) * 24
+	summary.Duration = 86400
 
 	return append([]Quote{summary}, quotes...)
 }
@@ -362,7 +362,7 @@ func (s QuoteSeries) ToQuote(_market Market, company Company, date time.Time) ([
 			Type:     _market.Name(),
 			Key:      company.Code,
 			Start:    int64(s.Timestamp[index]),
-			Duration: int64(time.Minute),
+			Duration: 60,
 			Open:     float32(s.Open[index]) / 100,
 			Close:    float32(s.Close[index]) / 100,
 			Max:      float32(s.Max[index]) / 100,
