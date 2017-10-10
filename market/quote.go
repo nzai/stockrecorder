@@ -180,6 +180,7 @@ func (q CompanyDailyQuote) ToQuote(_market Market, date time.Time) []Quote {
 
 	// 转换为Quote时只算Regular
 	quotes, summary := q.Regular.ToQuote(_market, q.Company, date)
+
 	summary.Type = _market.Name()
 	summary.Key = q.Company.Code
 	summary.Start = date.Unix()
@@ -350,6 +351,10 @@ func (s QuoteSeries) arrayEqual(a []uint32, b []uint32) error {
 
 // ToQuote 转换为Quote
 func (s QuoteSeries) ToQuote(_market Market, company Company, date time.Time) ([]Quote, Quote) {
+
+	if s.Count == 0 {
+		return []Quote{}, Quote{}
+	}
 
 	quotes := make([]Quote, int(s.Count))
 	summary := Quote{

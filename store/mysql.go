@@ -1,7 +1,9 @@
 package store
 
 import (
+	"bytes"
 	"database/sql"
+	"fmt"
 	"log"
 	"time"
 
@@ -67,18 +69,37 @@ func (s Mysql) Save(quote market.DailyQuote) error {
 func (s Mysql) saveQuote(tx *sql.Tx, quote market.DailyQuote) error {
 
 	quotes := quote.ToQuote()
-
-	stmt, err := s.db.Prepare("insert into quote(type,`key`,start,duration,open,close,max,min,volume) values(?,?,?,?,?,?,?,?,?)")
-	if err != nil {
-		return err
+	count := len(quotes)
+	if count == 0 {
+		return nil
 	}
-	defer stmt.Close()
 
-	for _, _quote := range quotes {
-		_, err = stmt.Exec(_quote.Type, _quote.Key, _quote.Start, _quote.Duration, _quote.Open, _quote.Close, _quote.Max, _quote.Min, _quote.Volume)
+	batchSize := 100000
+	start := 0
+	for start < count {
+		end := start + batchSize
+		if end > count {
+			end = count
+		}
+
+		buffer := bytes.NewBufferString("insert into quote(type,`key`,start,duration,open,close,max,min,volume) values")
+		for index, quote := range quotes[start:end] {
+			if index > 0 {
+				buffer.WriteString(",")
+			}
+
+			buffer.WriteString(fmt.Sprintf(`("%s","%s",%d,%d,%.2f,%.2f,%.2f,%.2f,%d)`, quote.Type, quote.Key, quote.Start, quote.Duration, quote.Open, quote.Close, quote.Max, quote.Min, quote.Volume))
+		}
+
+		_, err := tx.Exec(buffer.String())
 		if err != nil {
+			log.Print(buffer.String())
 			return err
 		}
+
+		log.Printf("[%s] %s count:%d / %d", quote.Market.Name(), quote.Date.Format("2006-01-02"), start, count)
+
+		start += batchSize
 	}
 
 	return nil
