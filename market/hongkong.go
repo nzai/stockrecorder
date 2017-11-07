@@ -1,10 +1,11 @@
 package market
 
 import (
-	"fmt"
-	"regexp"
+	"bytes"
 	"sort"
+	"strings"
 
+	"github.com/360EntSecGroup-Skylar/excelize"
 	"github.com/nzai/go-utility/net"
 )
 
@@ -24,49 +25,44 @@ func (m HongKong) Timezone() string {
 // Companies 上市公司
 func (m HongKong) Companies() ([]Company, error) {
 
-	urls := [...]string{
-		"https://www.hkex.com.hk/chi/market/sec_tradinfo/stockcode/eisdeqty_c.htm",
-		"https://www.hkex.com.hk/chi/market/sec_tradinfo/stockcode/eisdgems_c.htm",
+	url := "http://sc.hkex.com.hk/TuniS/www.hkex.com.hk/chi/services/trading/securities/securitieslists/ListOfSecurities_c.xlsx"
+
+	buffer, err := net.DownloadBufferRetry(url, retryTimes, retryIntervalSeconds)
+	if err != nil {
+		return nil, err
 	}
 
-	var list []Company
-	for _, url := range urls {
-
-		//	尝试从网络获取实时上市公司列表
-		html, err := net.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
-		if err != nil {
-			return nil, err
-		}
-
-		//	解析json
-		companies, err := m.parseHTML(html)
-		if err != nil {
-			return nil, err
-		}
-
-		list = append(list, companies...)
+	companies, err := m.parseXlsx(buffer)
+	if err != nil {
+		return nil, err
 	}
 
 	//	按Code排序
-	sort.Sort(CompanyList(list))
+	sort.Sort(CompanyList(companies))
 
-	return list, nil
+	return companies, nil
 }
 
 //	解析香港证券交易所上市公司
-func (m HongKong) parseHTML(html string) ([]Company, error) {
+func (m HongKong) parseXlsx(buffer []byte) ([]Company, error) {
 
-	//  使用正则分析json
-	regex := regexp.MustCompile(`>(\d{5})</td>\s*?<td[^>]*?>(<a.*?>)?([^<]+?)(</a>)?</td>`)
-	group := regex.FindAllStringSubmatch(html, -1)
-
-	var companies []Company
-	for _, section := range group {
-		companies = append(companies, Company{Code: section[1], Name: section[3]})
+	file, err := excelize.OpenReader(bytes.NewReader(buffer))
+	if err != nil {
+		return nil, err
 	}
 
-	if len(companies) == 0 {
-		return nil, fmt.Errorf("错误的香港证券交易所上市公司列表内容:%s", html)
+	rows := file.GetRows("ListOfSecuritites")
+	var companies []Company
+	for _, values := range rows {
+
+		if strings.Trim(values[0], " ") == "" {
+			continue
+		}
+
+		companies = append(companies, Company{
+			Code: values[0],
+			Name: values[1],
+		})
 	}
 
 	return companies, nil
