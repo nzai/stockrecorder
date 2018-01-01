@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log"
-	"math"
 	"time"
 )
 
@@ -104,7 +103,7 @@ func (q *DailyQuote) FromQuote(_market Market, date time.Time, quotes []Quote) {
 	var lastStart int
 	for index, quote := range quotes {
 
-		if quote.Key == lastCode || lastStart == 0 {
+		if quote.Code == lastCode || lastStart == 0 {
 			continue
 		}
 
@@ -113,7 +112,7 @@ func (q *DailyQuote) FromQuote(_market Market, date time.Time, quotes []Quote) {
 
 		q.Quotes = append(q.Quotes, cq)
 
-		lastCode = quote.Key
+		lastCode = quote.Code
 		lastStart = index
 	}
 
@@ -178,15 +177,13 @@ func (q CompanyDailyQuote) Equal(s CompanyDailyQuote) error {
 // ToQuote 转换为Quote
 func (q CompanyDailyQuote) ToQuote(_market Market, date time.Time) []Quote {
 
-	// 转换为Quote时只算Regular
-	quotes, summary := q.Regular.ToQuote(_market, q.Company, date)
+	var quotes []Quote
 
-	summary.Type = _market.Name()
-	summary.Key = q.Company.Code
-	summary.Start = date.Unix()
-	summary.Duration = 86400
+	quotes = append(quotes, q.Pre.ToQuote(_market, q.Company, date, "pre")...)
+	quotes = append(quotes, q.Regular.ToQuote(_market, q.Company, date, "regular")...)
+	quotes = append(quotes, q.Post.ToQuote(_market, q.Company, date, "post")...)
 
-	return append([]Quote{summary}, quotes...)
+	return quotes
 }
 
 // FromQuote 从Quote还原
@@ -197,7 +194,7 @@ func (q *CompanyDailyQuote) FromQuote(quotes []Quote) {
 	}
 
 	// 还原时只还原Regular
-	q.Company.Code = quotes[0].Key
+	q.Company.Code = quotes[0].Code
 	q.Regular.FromQuote(quotes)
 }
 
@@ -350,48 +347,27 @@ func (s QuoteSeries) arrayEqual(a []uint32, b []uint32) error {
 }
 
 // ToQuote 转换为Quote
-func (s QuoteSeries) ToQuote(_market Market, company Company, date time.Time) ([]Quote, Quote) {
+func (s QuoteSeries) ToQuote(_market Market, company Company, date time.Time, _type string) []Quote {
 
 	if s.Count == 0 {
-		return []Quote{}, Quote{}
+		return []Quote{}
 	}
 
 	quotes := make([]Quote, int(s.Count))
-	summary := Quote{
-		Max: float32(-math.MaxFloat32),
-		Min: float32(math.MaxFloat32),
-	}
-
 	for index := 0; index < int(s.Count); index++ {
 		quotes[index] = Quote{
-			Type:     _market.Name(),
-			Key:      company.Code,
-			Start:    int64(s.Timestamp[index]),
-			Duration: 60,
-			Open:     float32(s.Open[index]) / 100,
-			Close:    float32(s.Close[index]) / 100,
-			Max:      float32(s.Max[index]) / 100,
-			Min:      float32(s.Min[index]) / 100,
-			Volume:   int64(s.Volume[index]),
+			Code:   company.Code,
+			Start:  int64(s.Timestamp[index]),
+			Type:   _type,
+			Open:   float32(s.Open[index]) / 100,
+			Close:  float32(s.Close[index]) / 100,
+			Max:    float32(s.Max[index]) / 100,
+			Min:    float32(s.Min[index]) / 100,
+			Volume: int64(s.Volume[index]),
 		}
-
-		if index == 0 {
-			summary.Open = quotes[index].Open
-		}
-		summary.Close = quotes[index].Close
-
-		if summary.Max < quotes[index].Max {
-			summary.Max = quotes[index].Max
-		}
-
-		if summary.Min > quotes[index].Min {
-			summary.Min = quotes[index].Min
-		}
-
-		summary.Volume += quotes[index].Volume
 	}
 
-	return quotes, summary
+	return quotes
 }
 
 // FromQuote 从Quote转换
@@ -453,19 +429,18 @@ func (s QuoteSeries) Glance(logger *log.Logger, title string, location *time.Loc
 
 // Quote 报价
 type Quote struct {
-	ID       int64
-	Type     string
-	Key      string
-	Start    int64
-	Duration int64
-	Open     float32
-	Close    float32
-	Max      float32
-	Min      float32
-	Volume   int64
+	ID     int64
+	Code   string
+	Start  int64
+	Type   string
+	Open   float32
+	Close  float32
+	Max    float32
+	Min    float32
+	Volume int64
 }
 
 // ScanRows 读取
 func (q *Quote) ScanRows(rows *sql.Rows) error {
-	return rows.Scan(&q.ID, &q.Type, &q.Key, &q.Start, &q.Duration, &q.Open, &q.Close, &q.Max, &q.Min, &q.Volume)
+	return rows.Scan(&q.ID, &q.Code, &q.Start, &q.Type, &q.Open, &q.Close, &q.Max, &q.Min, &q.Volume)
 }
