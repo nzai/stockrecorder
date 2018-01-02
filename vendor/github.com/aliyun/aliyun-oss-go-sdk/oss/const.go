@@ -30,6 +30,40 @@ const (
 	MetaReplace MetadataDirectiveType = "REPLACE"
 )
 
+// StorageClassType Bucket的存储类型
+type StorageClassType string
+
+const (
+	// StorageStandard 标准存储模式
+	StorageStandard StorageClassType = "Standard"
+
+	// StorageIA 低频存储模式
+	StorageIA StorageClassType = "IA"
+
+	// StorageArchive 归档存储模式
+	StorageArchive StorageClassType = "Archive"
+)
+
+// HTTPMethod HTTP请求方法
+type HTTPMethod string
+
+const (
+	// HTTPGet HTTP请求方法 GET
+	HTTPGet HTTPMethod = "GET"
+
+	// HTTPPut HTTP请求方法 PUT
+	HTTPPut HTTPMethod = "PUT"
+
+	// HTTPHead HTTP请求方法 HEAD
+	HTTPHead HTTPMethod = "HEAD"
+
+	// HTTPPost HTTP请求方法 POST
+	HTTPPost HTTPMethod = "POST"
+
+	// HTTPDelete HTTP请求方法 DELETE
+	HTTPDelete HTTPMethod = "DELETE"
+)
+
 // Http头标签
 const (
 	HTTPHeaderAcceptEncoding     string = "Accept-Encoding"
@@ -71,6 +105,15 @@ const (
 	HTTPHeaderOssNextAppendPosition          = "X-Oss-Next-Append-Position"
 	HTTPHeaderOssRequestID                   = "X-Oss-Request-Id"
 	HTTPHeaderOssCRC64                       = "X-Oss-Hash-Crc64ecma"
+	HTTPHeaderOssSymlinkTarget               = "X-Oss-Symlink-Target"
+)
+
+// Http Param
+const (
+	HTTPParamExpires       = "Expires"
+	HTTPParamAccessKeyID   = "OSSAccessKeyId"
+	HTTPParamSignature     = "Signature"
+	HTTPParamSecurityToken = "security-token"
 )
 
 // 其它常量
@@ -85,5 +128,5 @@ const (
 
 	CheckpointFileSuffix = ".cp" // Checkpoint文件后缀
 
-	Version = "1.2.3" // Go sdk版本
+	Version = "1.8.0" // Go sdk版本
 )

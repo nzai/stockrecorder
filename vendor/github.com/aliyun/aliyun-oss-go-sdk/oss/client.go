@@ -89,7 +89,7 @@ func (client Client) Bucket(bucketName string) (*Bucket, error) {
 // bucketName bucket名称，在整个OSS中具有全局唯一性，且不能修改。bucket名称的只能包括小写字母，数字和短横线-，
 // 必须以小写字母或者数字开头，长度必须在3-255字节之间。
 // options  创建bucket的选项。您可以使用选项ACL，指定bucket的访问权限。Bucket有以下三种访问权限，私有读写（ACLPrivate）、
-// 公共读私有写（ACLPublicRead），公共读公共写(ACLPublicReadWrite)，默认访问权限是私有读写。
+// 公共读私有写（ACLPublicRead），公共读公共写(ACLPublicReadWrite)，默认访问权限是私有读写。可以使用StorageClass选项设置bucket的存储方式，目前支持：标准存储模式（StorageStandard）、 低频存储模式（StorageIA）、 归档存储模式（StorageArchive）。
 //
 // error 操作无错误时返回nil，非nil为错误信息。
 //
@@ -97,7 +97,23 @@ func (client Client) CreateBucket(bucketName string, options ...Option) error {
 	headers := make(map[string]string)
 	handleOptions(headers, options)
 
-	resp, err := client.do("PUT", bucketName, "", "", headers, nil)
+	buffer := new(bytes.Buffer)
+
+	isOptSet, val, _ := isOptionSet(options, storageClass)
+	if isOptSet {
+		cbConfig := createBucketConfiguration{StorageClass: val.(StorageClassType)}
+		bs, err := xml.Marshal(cbConfig)
+		if err != nil {
+			return err
+		}
+		buffer.Write(bs)
+
+		contentType := http.DetectContentType(buffer.Bytes())
+		headers[HTTPHeaderContentType] = contentType
+	}
+
+	params := map[string]interface{}{}
+	resp, err := client.do("PUT", bucketName, params, headers, buffer)
 	if err != nil {
 		return err
 	}
@@ -119,12 +135,12 @@ func (client Client) CreateBucket(bucketName string, options ...Option) error {
 func (client Client) ListBuckets(options ...Option) (ListBucketsResult, error) {
 	var out ListBucketsResult
 
-	params, err := handleParams(options)
+	params, err := getRawParams(options)
 	if err != nil {
 		return out, err
 	}
 
-	resp, err := client.do("GET", "", params, "", nil, nil)
+	resp, err := client.do("GET", "", params, nil, nil)
 	if err != nil {
 		return out, err
 	}
@@ -162,7 +178,8 @@ func (client Client) IsBucketExist(bucketName string) (bool, error) {
 // error 操作无错误时返回nil，非nil为错误信息。
 //
 func (client Client) DeleteBucket(bucketName string) error {
-	resp, err := client.do("DELETE", bucketName, "", "", nil, nil)
+	params := map[string]interface{}{}
+	resp, err := client.do("DELETE", bucketName, params, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -183,7 +200,9 @@ func (client Client) DeleteBucket(bucketName string) error {
 // error  操作无错误时返回nil，非nil为错误信息。
 //
 func (client Client) GetBucketLocation(bucketName string) (string, error) {
-	resp, err := client.do("GET", bucketName, "location", "location", nil, nil)
+	params := map[string]interface{}{}
+	params["location"] = nil
+	resp, err := client.do("GET", bucketName, params, nil, nil)
 	if err != nil {
 		return "", err
 	}
@@ -205,7 +224,8 @@ func (client Client) GetBucketLocation(bucketName string) (string, error) {
 //
 func (client Client) SetBucketACL(bucketName string, bucketACL ACLType) error {
 	headers := map[string]string{HTTPHeaderOssACL: string(bucketACL)}
-	resp, err := client.do("PUT", bucketName, "", "", headers, nil)
+	params := map[string]interface{}{}
+	resp, err := client.do("PUT", bucketName, params, headers, nil)
 	if err != nil {
 		return err
 	}
@@ -223,7 +243,9 @@ func (client Client) SetBucketACL(bucketName string, bucketACL ACLType) error {
 //
 func (client Client) GetBucketACL(bucketName string) (GetBucketACLResult, error) {
 	var out GetBucketACLResult
-	resp, err := client.do("GET", bucketName, "acl", "acl", nil, nil)
+	params := map[string]interface{}{}
+	params["acl"] = nil
+	resp, err := client.do("GET", bucketName, params, nil, nil)
 	if err != nil {
 		return out, err
 	}
@@ -260,7 +282,9 @@ func (client Client) SetBucketLifecycle(bucketName string, rules []LifecycleRule
 	headers := map[string]string{}
 	headers[HTTPHeaderContentType] = contentType
 
-	resp, err := client.do("PUT", bucketName, "lifecycle", "lifecycle", headers, buffer)
+	params := map[string]interface{}{}
+	params["lifecycle"] = nil
+	resp, err := client.do("PUT", bucketName, params, headers, buffer)
 	if err != nil {
 		return err
 	}
@@ -277,7 +301,9 @@ func (client Client) SetBucketLifecycle(bucketName string, rules []LifecycleRule
 // error 操作无错误为nil，非nil为错误信息。
 //
 func (client Client) DeleteBucketLifecycle(bucketName string) error {
-	resp, err := client.do("DELETE", bucketName, "lifecycle", "lifecycle", nil, nil)
+	params := map[string]interface{}{}
+	params["lifecycle"] = nil
+	resp, err := client.do("DELETE", bucketName, params, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -295,7 +321,9 @@ func (client Client) DeleteBucketLifecycle(bucketName string) error {
 //
 func (client Client) GetBucketLifecycle(bucketName string) (GetBucketLifecycleResult, error) {
 	var out GetBucketLifecycleResult
-	resp, err := client.do("GET", bucketName, "lifecycle", "lifecycle", nil, nil)
+	params := map[string]interface{}{}
+	params["lifecycle"] = nil
+	resp, err := client.do("GET", bucketName, params, nil, nil)
 	if err != nil {
 		return out, err
 	}
@@ -343,7 +371,9 @@ func (client Client) SetBucketReferer(bucketName string, referers []string, allo
 	headers := map[string]string{}
 	headers[HTTPHeaderContentType] = contentType
 
-	resp, err := client.do("PUT", bucketName, "referer", "referer", headers, buffer)
+	params := map[string]interface{}{}
+	params["referer"] = nil
+	resp, err := client.do("PUT", bucketName, params, headers, buffer)
 	if err != nil {
 		return err
 	}
@@ -361,7 +391,9 @@ func (client Client) SetBucketReferer(bucketName string, referers []string, allo
 //
 func (client Client) GetBucketReferer(bucketName string) (GetBucketRefererResult, error) {
 	var out GetBucketRefererResult
-	resp, err := client.do("GET", bucketName, "referer", "referer", nil, nil)
+	params := map[string]interface{}{}
+	params["referer"] = nil
+	resp, err := client.do("GET", bucketName, params, nil, nil)
 	if err != nil {
 		return out, err
 	}
@@ -409,7 +441,9 @@ func (client Client) SetBucketLogging(bucketName, targetBucket, targetPrefix str
 	headers := map[string]string{}
 	headers[HTTPHeaderContentType] = contentType
 
-	resp, err := client.do("PUT", bucketName, "logging", "logging", headers, buffer)
+	params := map[string]interface{}{}
+	params["logging"] = nil
+	resp, err := client.do("PUT", bucketName, params, headers, buffer)
 	if err != nil {
 		return err
 	}
@@ -425,7 +459,9 @@ func (client Client) SetBucketLogging(bucketName, targetBucket, targetPrefix str
 // error 操作无错误为nil，非nil为错误信息。
 //
 func (client Client) DeleteBucketLogging(bucketName string) error {
-	resp, err := client.do("DELETE", bucketName, "logging", "logging", nil, nil)
+	params := map[string]interface{}{}
+	params["logging"] = nil
+	resp, err := client.do("DELETE", bucketName, params, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -443,7 +479,9 @@ func (client Client) DeleteBucketLogging(bucketName string) error {
 //
 func (client Client) GetBucketLogging(bucketName string) (GetBucketLoggingResult, error) {
 	var out GetBucketLoggingResult
-	resp, err := client.do("GET", bucketName, "logging", "logging", nil, nil)
+	params := map[string]interface{}{}
+	params["logging"] = nil
+	resp, err := client.do("GET", bucketName, params, nil, nil)
 	if err != nil {
 		return out, err
 	}
@@ -481,7 +519,9 @@ func (client Client) SetBucketWebsite(bucketName, indexDocument, errorDocument s
 	headers := make(map[string]string)
 	headers[HTTPHeaderContentType] = contentType
 
-	resp, err := client.do("PUT", bucketName, "website", "website", headers, buffer)
+	params := map[string]interface{}{}
+	params["website"] = nil
+	resp, err := client.do("PUT", bucketName, params, headers, buffer)
 	if err != nil {
 		return err
 	}
@@ -497,7 +537,9 @@ func (client Client) SetBucketWebsite(bucketName, indexDocument, errorDocument s
 // error  操作无错误为nil，非nil为错误信息。
 //
 func (client Client) DeleteBucketWebsite(bucketName string) error {
-	resp, err := client.do("DELETE", bucketName, "website", "website", nil, nil)
+	params := map[string]interface{}{}
+	params["website"] = nil
+	resp, err := client.do("DELETE", bucketName, params, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -515,7 +557,9 @@ func (client Client) DeleteBucketWebsite(bucketName string) error {
 //
 func (client Client) GetBucketWebsite(bucketName string) (GetBucketWebsiteResult, error) {
 	var out GetBucketWebsiteResult
-	resp, err := client.do("GET", bucketName, "website", "website", nil, nil)
+	params := map[string]interface{}{}
+	params["website"] = nil
+	resp, err := client.do("GET", bucketName, params, nil, nil)
 	if err != nil {
 		return out, err
 	}
@@ -558,7 +602,9 @@ func (client Client) SetBucketCORS(bucketName string, corsRules []CORSRule) erro
 	headers := map[string]string{}
 	headers[HTTPHeaderContentType] = contentType
 
-	resp, err := client.do("PUT", bucketName, "cors", "cors", headers, buffer)
+	params := map[string]interface{}{}
+	params["cors"] = nil
+	resp, err := client.do("PUT", bucketName, params, headers, buffer)
 	if err != nil {
 		return err
 	}
@@ -574,7 +620,9 @@ func (client Client) SetBucketCORS(bucketName string, corsRules []CORSRule) erro
 // error 操作无错误为nil，非nil为错误信息。
 //
 func (client Client) DeleteBucketCORS(bucketName string) error {
-	resp, err := client.do("DELETE", bucketName, "cors", "cors", nil, nil)
+	params := map[string]interface{}{}
+	params["cors"] = nil
+	resp, err := client.do("DELETE", bucketName, params, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -593,7 +641,9 @@ func (client Client) DeleteBucketCORS(bucketName string) error {
 //
 func (client Client) GetBucketCORS(bucketName string) (GetBucketCORSResult, error) {
 	var out GetBucketCORSResult
-	resp, err := client.do("GET", bucketName, "cors", "cors", nil, nil)
+	params := map[string]interface{}{}
+	params["cors"] = nil
+	resp, err := client.do("GET", bucketName, params, nil, nil)
 	if err != nil {
 		return out, err
 	}
@@ -613,7 +663,9 @@ func (client Client) GetBucketCORS(bucketName string) (GetBucketCORSResult, erro
 //
 func (client Client) GetBucketInfo(bucketName string) (GetBucketInfoResult, error) {
 	var out GetBucketInfoResult
-	resp, err := client.do("GET", bucketName, "bucketInfo", "bucketInfo", nil, nil)
+	params := map[string]interface{}{}
+	params["bucketInfo"] = nil
+	resp, err := client.do("GET", bucketName, params, nil, nil)
 	if err != nil {
 		return out, err
 	}
@@ -648,6 +700,8 @@ func Timeout(connectTimeoutSec, readWriteTimeout int64) ClientOption {
 		client.Config.HTTPTimeout.ReadWriteTimeout =
 			time.Second * time.Duration(readWriteTimeout)
 		client.Config.HTTPTimeout.HeaderTimeout =
+			time.Second * time.Duration(readWriteTimeout)
+		client.Config.HTTPTimeout.IdleConnTimeout =
 			time.Second * time.Duration(readWriteTimeout)
 		client.Config.HTTPTimeout.LongTimeout =
 			time.Second * time.Duration(readWriteTimeout*10)
@@ -741,8 +795,8 @@ func AuthProxy(proxyHost, proxyUser, proxyPassword string) ClientOption {
 }
 
 // Private
-func (client Client) do(method, bucketName, urlParams, subResource string,
+func (client Client) do(method, bucketName string, params map[string]interface{},
 	headers map[string]string, data io.Reader) (*Response, error) {
-	return client.Conn.Do(method, bucketName, "", urlParams,
-		subResource, headers, data, 0)
+	return client.Conn.Do(method, bucketName, "", params,
+		headers, data, 0, nil)
 }
