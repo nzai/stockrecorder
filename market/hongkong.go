@@ -24,21 +24,23 @@ func (m HongKong) Timezone() string {
 // Companies 上市公司
 func (m HongKong) Companies() ([]Company, error) {
 
-	url := "http://www.hkex.com.hk/Market-Data/Securities-Prices/Equities?sc_lang=zh-HK"
-
-	body, err := net.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
-	if err != nil {
-		return nil, err
+	source := map[string]string{
+		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Equities?sc_lang=zh-HK":                      "https://www1.hkex.com.hk/hkexwidget/data/getequityfilter?lang=chi&token=%s&sort=5&order=0&all=1", // 股本證券
+		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Exchange-Traded-Products?sc_lang=zh-hk":      "https://www1.hkex.com.hk/hkexwidget/data/getetpfilter?lang=chi&token=%s&sort=2&order=1&all=1",    // 交易所買賣產品
+		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Derivative-Warrants?sc_lang=zh-hk":           "https://www1.hkex.com.hk/hkexwidget/data/getdwfilter?lang=chi&token=%s&sort=5&order=0&all=1",     // 衍生權證
+		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Callable-Bull-Bear-Contracts?sc_lang=zh-hk":  "https://www1.hkex.com.hk/hkexwidget/data/getcbbcfilter?lang=chi&token=%s&sort=5&order=0&all=1",   // 牛熊證
+		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Real-Estate-Investment-Trusts?sc_lang=zh-hk": "https://www1.hkex.com.hk/hkexwidget/data/getreitfilter?lang=chi&token=%s&sort=5&order=0&all=1",   // 房地產投資信託基金
+		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Debt-Securities?sc_lang=zh-hk":               "https://www1.hkex.com.hk/hkexwidget/data/getdebtfilter?lang=chi&token=%s&sort=0&order=1&all=1",   // 債務證券
 	}
 
-	token, err := m.getToken(body)
-	if err != nil {
-		return nil, err
-	}
+	var companies []Company
+	for page, api := range source {
+		_companies, err := m.queryCompanies(page, api)
+		if err != nil {
+			return nil, err
+		}
 
-	companies, err := m.queryCompanies(token)
-	if err != nil {
-		return nil, err
+		companies = append(companies, _companies...)
 	}
 
 	//	按Code排序
@@ -47,31 +49,28 @@ func (m HongKong) Companies() ([]Company, error) {
 	return companies, nil
 }
 
-// getToken 获取访问api的token
-func (m HongKong) getToken(body string) (string, error) {
-
-	regex := regexp.MustCompile(`\"Base64-AES-Encrypted-Token\";\s*?return \"([^\"]+?)\";`)
-
-	matches := regex.FindStringSubmatch(body)
-	if len(matches) != 2 {
-		return "", errors.New("获取token失败")
-	}
-
-	return matches[1], nil
-}
-
 //	解析香港证券交易所上市公司
-func (m HongKong) queryCompanies(token string) ([]Company, error) {
+func (m HongKong) queryCompanies(page, api string) ([]Company, error) {
 
-	url := fmt.Sprintf("https://www1.hkex.com.hk/hkexwidget/data/getequityfilter?lang=chi&sort=5&order=0&all=1&token=%s", token)
-
-	body, err := net.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
+	body, err := net.DownloadStringRetry(page, retryTimes, retryIntervalSeconds)
 	if err != nil {
 		return nil, err
 	}
 
-	regex := regexp.MustCompile(`\"ric\":\"(\d{2,5})\.HK\"\S+?\"nm\":\"([^\"]+)\"`)
-	group := regex.FindAllStringSubmatch(body, -1)
+	regexToken := regexp.MustCompile(`\"Base64-AES-Encrypted-Token\";\s*?return \"([^\"]+?)\";`)
+
+	matches := regexToken.FindStringSubmatch(body)
+	if len(matches) != 2 {
+		return nil, errors.New("获取token失败")
+	}
+
+	body, err = net.DownloadStringRetry(fmt.Sprintf(api, matches[1]), retryTimes, retryIntervalSeconds)
+	if err != nil {
+		return nil, err
+	}
+
+	regexCode := regexp.MustCompile(`\"ric\":\"(\d{2,5})\.HK\"\S+?\"nm\":\"([^\"]+)\"`)
+	group := regexCode.FindAllStringSubmatch(body, -1)
 
 	var companies []Company
 	for _, section := range group {
