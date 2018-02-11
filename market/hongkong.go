@@ -3,9 +3,11 @@ package market
 import (
 	"errors"
 	"fmt"
-	"github.com/nzai/go-utility/net"
 	"regexp"
 	"sort"
+	"time"
+
+	"github.com/nzai/go-utility/net"
 )
 
 // HongKong 香港证券市场
@@ -25,12 +27,12 @@ func (m HongKong) Timezone() string {
 func (m HongKong) Companies() ([]Company, error) {
 
 	source := map[string]string{
-		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Equities?sc_lang=zh-HK":                      "https://www1.hkex.com.hk/hkexwidget/data/getequityfilter?lang=chi&token=%s&sort=5&order=0&all=1", // 股本證券
-		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Exchange-Traded-Products?sc_lang=zh-hk":      "https://www1.hkex.com.hk/hkexwidget/data/getetpfilter?lang=chi&token=%s&sort=2&order=1&all=1",    // 交易所買賣產品
-		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Derivative-Warrants?sc_lang=zh-hk":           "https://www1.hkex.com.hk/hkexwidget/data/getdwfilter?lang=chi&token=%s&sort=5&order=0&all=1",     // 衍生權證
-		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Callable-Bull-Bear-Contracts?sc_lang=zh-hk":  "https://www1.hkex.com.hk/hkexwidget/data/getcbbcfilter?lang=chi&token=%s&sort=5&order=0&all=1",   // 牛熊證
-		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Real-Estate-Investment-Trusts?sc_lang=zh-hk": "https://www1.hkex.com.hk/hkexwidget/data/getreitfilter?lang=chi&token=%s&sort=5&order=0&all=1",   // 房地產投資信託基金
-		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Debt-Securities?sc_lang=zh-hk":               "https://www1.hkex.com.hk/hkexwidget/data/getdebtfilter?lang=chi&token=%s&sort=0&order=1&all=1",   // 債務證券
+		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Equities?sc_lang=zh-HK":                      "https://www1.hkex.com.hk/hkexwidget/data/getequityfilter?lang=chi&token=%s&sort=5&order=0&all=1&qid=%d&callback=3322", // 股本證券
+		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Exchange-Traded-Products?sc_lang=zh-hk":      "https://www1.hkex.com.hk/hkexwidget/data/getetpfilter?lang=chi&token=%s&sort=2&order=1&all=1&qid=%d&callback=3322",    // 交易所買賣產品
+		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Derivative-Warrants?sc_lang=zh-hk":           "https://www1.hkex.com.hk/hkexwidget/data/getdwfilter?lang=chi&token=%s&sort=5&order=0&all=1&qid=%d&callback=3322",     // 衍生權證
+		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Callable-Bull-Bear-Contracts?sc_lang=zh-hk":  "https://www1.hkex.com.hk/hkexwidget/data/getcbbcfilter?lang=chi&token=%s&sort=5&order=0&all=1&qid=%d&callback=3322",   // 牛熊證
+		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Real-Estate-Investment-Trusts?sc_lang=zh-hk": "https://www1.hkex.com.hk/hkexwidget/data/getreitfilter?lang=chi&token=%s&sort=5&order=0&all=1&qid=%d&callback=3322",   // 房地產投資信託基金
+		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Debt-Securities?sc_lang=zh-hk":               "https://www1.hkex.com.hk/hkexwidget/data/getdebtfilter?lang=chi&token=%s&sort=0&order=1&all=1&qid=%d&callback=3322",   // 債務證券
 	}
 
 	var companies []Company
@@ -64,7 +66,7 @@ func (m HongKong) queryCompanies(page, api string) ([]Company, error) {
 		return nil, errors.New("获取token失败")
 	}
 
-	body, err = net.DownloadStringRetry(fmt.Sprintf(api, matches[1]), retryTimes, retryIntervalSeconds)
+	body, err = net.DownloadStringRetry(fmt.Sprintf(api, matches[1], time.Now().UnixNano()), retryTimes, retryIntervalSeconds)
 	if err != nil {
 		return nil, err
 	}
