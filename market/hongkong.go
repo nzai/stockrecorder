@@ -85,10 +85,5 @@ func (m HongKong) queryCompanies(page, api string) ([]Company, error) {
 // YahooQueryCode 雅虎查询代码
 func (m HongKong) YahooQueryCode(company Company) string {
 
-	queryCode := company.Code[1:] + ".HK"
-	if company.Code[:1] != "0" {
-		queryCode = company.Code + ".HK"
-	}
-
-	return queryCode
+	return company.Code + ".HK"
 }
