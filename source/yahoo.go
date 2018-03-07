@@ -30,7 +30,7 @@ func (yahoo YahooFinance) Crawl(_market market.Market, company market.Company, d
 	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 	end := start.AddDate(0, 0, 1)
 
-	pattern := "https://finance-yql.media.yahoo.com/v7/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%%7Csplit%%7Cearn&corsDomain=finance.yahoo.com"
+	pattern := "https://query2.finance.yahoo.com/v8/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%%7Csplit%%7Cearn&corsDomain=finance.yahoo.com"
 	url := fmt.Sprintf(pattern, _market.YahooQueryCode(company), end.Unix(), start.Unix())
 
 	// 查询Yahoo财经接口,返回股票分时数据
