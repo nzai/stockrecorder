@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // WriteLines 写文件
@@ -97,7 +98,7 @@ func EnsureDir(dir string) error {
 		return err
 	}
 
-	return os.Mkdir(dir, 0666)
+	return os.Mkdir(dir, 0755)
 }
 
 // OpenForWrite 打开文件以便写入
@@ -110,7 +111,7 @@ func OpenForWrite(filePath string) (*os.File, error) {
 	}
 
 	//	打开文件
-	return os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0666)
+	return os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0660)
 }
 
 // OpenForRead 打开文件一遍读取
@@ -122,7 +123,7 @@ func OpenForRead(filePath string) (*os.File, error) {
 	}
 
 	//	打开文件
-	return os.OpenFile(filePath, os.O_RDONLY, 0666)
+	return os.OpenFile(filePath, os.O_RDONLY, 0660)
 }
 
 // ReadLines 从文件中读取字符串数组
@@ -187,5 +188,52 @@ func ReadAllString(filePath string) (string, error) {
 // IsExists 判断文件是否存在
 func IsExists(filePath string) bool {
 	_, err := os.Stat(filePath)
-	return !os.IsNotExist(err)
+	return err == nil
+}
+
+var (
+	// reservedFilenames 文件名保留字
+	reservedFilenames = []string{"con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9"}
+)
+
+// IsReservedFileName 是否是文件名保留字
+func IsReservedFileName(filePath string) bool {
+
+	base := filepath.Base(filePath)
+	parts := strings.Split(base, ".")
+	var title string
+	if len(parts) > 0 {
+		title = strings.ToLower(parts[0])
+	}
+
+	for _, name := range reservedFilenames {
+		if title != name {
+			continue
+		}
+
+		return true
+	}
+
+	return false
+}
+
+// EnsureFileName 保证文件名不受保留字影响
+func EnsureFileName(filePath string) string {
+
+	isReserved := IsReservedFileName(filePath)
+	if !isReserved {
+		return filePath
+	}
+
+	dir := filepath.Dir(filePath)
+	base := filepath.Base(filePath)
+	ext := filepath.Ext(filePath)
+
+	parts := strings.Split(base, ".")
+	var title string
+	if len(parts) > 0 {
+		title = parts[0]
+	}
+
+	return filepath.Join(dir, "reserved."+title+ext)
 }

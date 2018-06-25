@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"strings"
 	"time"
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
-	"github.com/nzai/stockrecorder/market"
+	"github.com/nzai/stockrecorder/quote"
+	"go.uber.org/zap"
 )
 
 // AliyunOSSConfig 阿里云对象存储服务配置
@@ -44,64 +44,71 @@ func NewAliyunOSS(config AliyunOSSConfig) *AliyunOSS {
 	return &AliyunOSS{config: config, bucket: bucket}
 }
 
-// objectKey 存储路径
-func (s AliyunOSS) objectKey(_market market.Market, date time.Time) string {
-	return fmt.Sprintf("%s%s/%s.mdq", s.config.KeyRoot, date.Format("2006/01/02"), strings.ToLower(_market.Name()))
+// objectKey 路径
+func (s AliyunOSS) objectKey(exchange *quote.Exchange, date time.Time) string {
+	return fmt.Sprintf("%s%s/%s.mdq", s.config.KeyRoot, date.Format("2006/01/02"), strings.ToLower(exchange.Code))
 }
 
 // Exists 判断是否存在
-func (s AliyunOSS) Exists(_market market.Market, date time.Time) (bool, error) {
-	return s.bucket.IsObjectExist(s.objectKey(_market, date))
+func (s AliyunOSS) Exists(exchange *quote.Exchange, date time.Time) (bool, error) {
+	return s.bucket.IsObjectExist(s.objectKey(exchange, date))
 }
 
 // Save 保存
-func (s AliyunOSS) Save(quote market.DailyQuote) error {
+func (s AliyunOSS) Save(quote *quote.ExchangeDailyQuote) error {
 
 	// gzip 最高压缩
 	buffer := new(bytes.Buffer)
-	w, err := gzip.NewWriterLevel(buffer, gzip.BestCompression)
+	gw, err := gzip.NewWriterLevel(buffer, gzip.BestCompression)
 	if err != nil {
+		zap.L().Error("write quote gzip failed", zap.Error(err), zap.Any("exchange", quote.Exchange), zap.Time("date", quote.Date), zap.Int("companies", len(quote.Companies)))
 		return err
 	}
-	_, err = w.Write(quote.Marshal())
-	if err != nil {
-		return err
-	}
-	w.Flush()
-	w.Close()
 
-	zipped, err := ioutil.ReadAll(buffer)
+	err = quote.Marshal(gw)
 	if err != nil {
+		zap.L().Error("write quote gzip failed", zap.Error(err), zap.Any("exchange", quote.Exchange), zap.Time("date", quote.Date), zap.Int("companies", len(quote.Companies)))
 		return err
 	}
+
+	gw.Flush()
+	gw.Close()
 
 	// 上传
-	return s.bucket.PutObject(s.objectKey(quote.Market, quote.Date), bytes.NewReader(zipped))
+	key := s.objectKey(quote.Exchange, quote.Date)
+	err = s.bucket.PutObject(key, bytes.NewReader(buffer.Bytes()))
+	if err != nil {
+		zap.L().Error("upload quote gzip failed", zap.Error(err), zap.String("bucket", s.bucket.BucketName), zap.String("key", key))
+		return err
+	}
+
+	return nil
 }
 
 // Load 读取
-func (s AliyunOSS) Load(_market market.Market, date time.Time) (market.DailyQuote, error) {
+func (s AliyunOSS) Load(exchange *quote.Exchange, date time.Time) (*quote.ExchangeDailyQuote, error) {
 
-	mdq := market.DailyQuote{Market: _market, Date: date}
-
-	readCloser, err := s.bucket.GetObject(s.objectKey(_market, date))
+	key := s.objectKey(exchange, date)
+	rc, err := s.bucket.GetObject(key)
 	if err != nil {
-		return mdq, err
+		zap.L().Error("load quote failed", zap.Error(err), zap.String("bucket", s.bucket.BucketName), zap.String("key", key))
+		return nil, err
 	}
-	defer readCloser.Close()
+	defer rc.Close()
 
-	reader, err := gzip.NewReader(readCloser)
+	gr, err := gzip.NewReader(rc)
 	if err != nil {
-		return mdq, err
+		zap.L().Error("read quote gzip failed", zap.Error(err), zap.String("bucket", s.bucket.BucketName), zap.String("key", key))
+		return nil, err
 	}
-	defer reader.Close()
+	defer gr.Close()
 
-	buffer, err := ioutil.ReadAll(reader)
+	edq := new(quote.ExchangeDailyQuote)
+	err = edq.Unmarshal(gr)
 	if err != nil {
-		return mdq, err
+		zap.L().Error("unmarshal quote failed", zap.Error(err), zap.String("bucket", s.bucket.BucketName), zap.String("key", key))
+		return nil, err
 	}
 
-	mdq.Unmarshal(buffer)
-
-	return mdq, nil
+	return edq, nil
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nzai/go-utility/net"
+	"github.com/nzai/stockrecorder/quote"
 )
 
 // HongKong 香港证券市场
@@ -24,7 +25,7 @@ func (m HongKong) Timezone() string {
 }
 
 // Companies 上市公司
-func (m HongKong) Companies() ([]Company, error) {
+func (m HongKong) Companies() ([]quote.Company, error) {
 
 	source := map[string]string{
 		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Equities?sc_lang=zh-HK":                      "https://www1.hkex.com.hk/hkexwidget/data/getequityfilter?lang=chi&token=%s&sort=5&order=0&all=1&qid=%d&callback=3322", // 股本證券
@@ -35,7 +36,7 @@ func (m HongKong) Companies() ([]Company, error) {
 		"http://www.hkex.com.hk/Market-Data/Securities-Prices/Debt-Securities?sc_lang=zh-hk":               "https://www1.hkex.com.hk/hkexwidget/data/getdebtfilter?lang=chi&token=%s&sort=0&order=1&all=1&qid=%d&callback=3322",   // 債務證券
 	}
 
-	var companies []Company
+	var companies []quote.Company
 	for page, api := range source {
 		_companies, err := m.queryCompanies(page, api)
 		if err != nil {
@@ -46,13 +47,13 @@ func (m HongKong) Companies() ([]Company, error) {
 	}
 
 	//	按Code排序
-	sort.Sort(CompanyList(companies))
+	sort.Sort(quote.CompanyList(companies))
 
 	return companies, nil
 }
 
 //	解析香港证券交易所上市公司
-func (m HongKong) queryCompanies(page, api string) ([]Company, error) {
+func (m HongKong) queryCompanies(page, api string) ([]quote.Company, error) {
 
 	body, err := net.DownloadStringRetry(page, retryTimes, retryIntervalSeconds)
 	if err != nil {
@@ -74,16 +75,15 @@ func (m HongKong) queryCompanies(page, api string) ([]Company, error) {
 	regexCode := regexp.MustCompile(`\"ric\":\"(\d{2,5})\.HK\"\S+?\"nm\":\"([^\"]+)\"`)
 	group := regexCode.FindAllStringSubmatch(body, -1)
 
-	var companies []Company
+	var companies []quote.Company
 	for _, section := range group {
-		companies = append(companies, Company{Code: section[1], Name: section[2]})
+		companies = append(companies, quote.Company{Code: section[1], Name: section[2]})
 	}
 
 	return companies, nil
 }
 
 // YahooQueryCode 雅虎查询代码
-func (m HongKong) YahooQueryCode(company Company) string {
-
+func (m HongKong) YahooQueryCode(company quote.Company) string {
 	return company.Code + ".HK"
 }

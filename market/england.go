@@ -7,9 +7,11 @@ import (
 	"sync"
 
 	"errors"
-	"github.com/nzai/go-utility/net"
 	"regexp"
 	"strconv"
+
+	"github.com/nzai/go-utility/net"
+	"github.com/nzai/stockrecorder/quote"
 )
 
 // England 英国证券市场
@@ -26,7 +28,7 @@ func (m England) Timezone() string {
 }
 
 // Companies 上市公司
-func (m England) Companies() ([]Company, error) {
+func (m England) Companies() ([]quote.Company, error) {
 
 	regexPage := regexp.MustCompile(`Page \d+ of (\d+)`)
 	regexCompany := regexp.MustCompile(`<td scope=\"row\" class=\"name\">(\w+)</td>(?s).*?>([^<]+?)</a>`)
@@ -56,7 +58,7 @@ func (m England) Companies() ([]Company, error) {
 	wg := &sync.WaitGroup{}
 	wg.Add(totalPages)
 
-	companies := make([]Company, 0, totalPages*pageSize)
+	companies := make([]quote.Company, 0, totalPages*pageSize)
 	for index := 1; index <= totalPages; index++ {
 
 		ch <- true
@@ -79,13 +81,13 @@ func (m England) Companies() ([]Company, error) {
 	wg.Wait()
 
 	//	按Code排序
-	sort.Sort(CompanyList(companies))
+	sort.Sort(quote.CompanyList(companies))
 
 	return companies, nil
 }
 
 //	解析CSV
-func (m England) queryCompanies(url string) ([]Company, error) {
+func (m England) queryCompanies(url string) ([]quote.Company, error) {
 
 	//	尝试从网络获取实时上市公司列表
 	body, err := net.DownloadStringRetry(url, retryTimes, retryIntervalSeconds)
@@ -96,10 +98,10 @@ func (m England) queryCompanies(url string) ([]Company, error) {
 	regex := regexp.MustCompile(`<td scope=\"row\" class=\"name\">(\w+)</td>(?s).*?>([^<]+?)</a>`)
 	groups := regex.FindAllStringSubmatch(body, -1)
 
-	var companies []Company
+	var companies []quote.Company
 	for _, group := range groups {
 
-		companies = append(companies, Company{
+		companies = append(companies, quote.Company{
 			Code: strings.Trim(group[1], " "),
 			Name: strings.Trim(group[2], " ")})
 	}
@@ -108,6 +110,6 @@ func (m England) queryCompanies(url string) ([]Company, error) {
 }
 
 // YahooQueryCode 雅虎查询代码
-func (m England) YahooQueryCode(company Company) string {
+func (m England) YahooQueryCode(company quote.Company) string {
 	return company.Code + ".L"
 }

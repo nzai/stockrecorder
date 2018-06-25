@@ -3,6 +3,8 @@ package market
 import (
 	"errors"
 	"strings"
+
+	"github.com/nzai/stockrecorder/quote"
 )
 
 const (
@@ -17,10 +19,10 @@ type Market interface {
 	//	时区
 	Timezone() string
 	//	获取上市公司列表
-	Companies() ([]Company, error)
+	Companies() ([]quote.Company, error)
 
 	// 用于雅虎财经接口的查询代码后缀
-	YahooQueryCode(company Company) string
+	YahooQueryCode(company quote.Company) string
 }
 
 var (

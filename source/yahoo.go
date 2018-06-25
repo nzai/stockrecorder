@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/nzai/go-utility/net"
-	"github.com/nzai/stockrecorder/market"
+	"github.com/nzai/stockrecorder/quote"
 )
 
 // YahooFinance 雅虎财经数据源
@@ -24,14 +24,14 @@ func (yahoo YahooFinance) Expiration() time.Duration {
 }
 
 // Crawl 获取公司每天的报价
-func (yahoo YahooFinance) Crawl(_market market.Market, company market.Company, date time.Time) (*market.CompanyDailyQuote, error) {
+func (yahoo YahooFinance) Crawl(exchange *quote.Exchange, company *quote.Company, date time.Time) (*quote.CompanyDailyQuote, error) {
 
 	// 起止时间
 	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 	end := start.AddDate(0, 0, 1)
 
-	pattern := "https://query2.finance.yahoo.com/v8/finance/chart/%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%%7Csplit%%7Cearn&corsDomain=finance.yahoo.com"
-	url := fmt.Sprintf(pattern, _market.YahooQueryCode(company), end.Unix(), start.Unix())
+	pattern := "https://query2.finance.yahoo.com/v8/finance/chart/%s%s?period2=%d&period1=%d&interval=1m&indicators=quote&includeTimestamps=true&includePrePost=true&events=div%%7Csplit%%7Cearn&corsDomain=finance.yahoo.com"
+	url := fmt.Sprintf(pattern, company.Code, exchange.YahooSuffix, end.Unix(), start.Unix())
 
 	// 查询Yahoo财经接口,返回股票分时数据
 	str, err := net.DownloadStringRetry(url, yahoo.RetryCount(), yahoo.RetryInterval())
@@ -53,7 +53,7 @@ func (yahoo YahooFinance) Crawl(_market market.Market, company market.Company, d
 	}
 
 	// 解析
-	return yahoo.parse(_market, company, date, quote)
+	return yahoo.parse(company, quote)
 }
 
 // valid 校验
@@ -99,41 +99,45 @@ func (yahoo YahooFinance) valid(quote *YahooQuote) error {
 }
 
 // parse 解析结果
-func (yahoo YahooFinance) parse(_market market.Market, company market.Company, date time.Time, quote *YahooQuote) (*market.CompanyDailyQuote, error) {
+func (yahoo YahooFinance) parse(company *quote.Company, yq *YahooQuote) (*quote.CompanyDailyQuote, error) {
 
-	companyDailyQuote := market.CompanyDailyQuote{Company: company}
+	cdq := &quote.CompanyDailyQuote{
+		Company: company,
+		Pre:     make([]quote.Quote, 0),
+		Regular: make([]quote.Quote, 0),
+		Post:    make([]quote.Quote, 0),
+	}
 
-	periods, _quote := quote.Chart.Result[0].Meta.TradingPeriods, quote.Chart.Result[0].Indicators.Quotes[0]
-	for index, ts := range quote.Chart.Result[0].Timestamp {
+	periods, qs := yq.Chart.Result[0].Meta.TradingPeriods, yq.Chart.Result[0].Indicators.Quotes[0]
+	for index, ts := range yq.Chart.Result[0].Timestamp {
 
 		//	如果全为0就忽略
-		if _quote.Open[index] == 0 && _quote.Close[index] == 0 && _quote.High[index] == 0 && _quote.Low[index] == 0 && _quote.Volume[index] == 0 {
+		if qs.Open[index] == 0 && qs.Close[index] == 0 && qs.High[index] == 0 && qs.Low[index] == 0 && qs.Volume[index] == 0 {
 			continue
 		}
 
-		var series *market.QuoteSeries
+		q := quote.Quote{
+			Timestamp: uint64(ts),
+			Open:      qs.Open[index],
+			Close:     qs.Close[index],
+			High:      qs.High[index],
+			Low:       qs.Low[index],
+			Volume:    uint64(qs.Volume[index]),
+		}
 
 		//	Pre, Regular, Post
 		if ts >= periods.Pres[0][0].Start && ts < periods.Pres[0][0].End {
-			series = &companyDailyQuote.Pre
+			cdq.Pre = append(cdq.Pre, q)
 		} else if ts >= periods.Regulars[0][0].Start && ts < periods.Regulars[0][0].End {
-			series = &companyDailyQuote.Regular
+			cdq.Pre = append(cdq.Regular, q)
 		} else if ts >= periods.Posts[0][0].Start && ts < periods.Posts[0][0].End {
-			series = &companyDailyQuote.Post
+			cdq.Pre = append(cdq.Post, q)
 		} else {
 			continue
 		}
-
-		series.Count++
-		series.Timestamp = append(series.Timestamp, uint32(ts))
-		series.Open = append(series.Open, uint32(_quote.Open[index]*100))
-		series.Close = append(series.Close, uint32(_quote.Close[index]*100))
-		series.Max = append(series.Max, uint32(_quote.High[index]*100))
-		series.Min = append(series.Min, uint32(_quote.Low[index]*100))
-		series.Volume = append(series.Volume, uint32(_quote.Volume[index]))
 	}
 
-	return &companyDailyQuote, nil
+	return cdq, nil
 }
 
 // ParallelMax 最大并发数
@@ -166,56 +170,30 @@ type YahooQuote struct {
 				PreviousClose        float32 `json:"previousClose"`
 				Scale                int     `json:"scale"`
 				CurrentTradingPeriod struct {
-					Pre struct {
-						Timezone  string `json:"timezone"`
-						Start     int64  `json:"start"`
-						End       int64  `json:"end"`
-						GMTOffset int64  `json:"gmtoffset"`
-					} `json:"pre"`
-					Regular struct {
-						Timezone  string `json:"timezone"`
-						Start     int64  `json:"start"`
-						End       int64  `json:"end"`
-						GMTOffset int64  `json:"gmtoffset"`
-					} `json:"regular"`
-					Post struct {
-						Timezone  string `json:"timezone"`
-						Start     int64  `json:"start"`
-						End       int64  `json:"end"`
-						GMTOffset int64  `json:"gmtoffset"`
-					} `json:"post"`
+					Pre     YahooPeroid `json:"pre"`
+					Regular YahooPeroid `json:"regular"`
+					Post    YahooPeroid `json:"post"`
 				} `json:"currentTradingPeriod"`
 				TradingPeriods struct {
-					Pres [][]struct {
-						Timezone  string `json:"timezone"`
-						Start     int64  `json:"start"`
-						End       int64  `json:"end"`
-						GMTOffset int64  `json:"gmtoffset"`
-					} `json:"pre"`
-					Regulars [][]struct {
-						Timezone  string `json:"timezone"`
-						Start     int64  `json:"start"`
-						End       int64  `json:"end"`
-						GMTOffset int64  `json:"gmtoffset"`
-					} `json:"regular"`
-					Posts [][]struct {
-						Timezone  string `json:"timezone"`
-						Start     int64  `json:"start"`
-						End       int64  `json:"end"`
-						GMTOffset int64  `json:"gmtoffset"`
-					} `json:"post"`
+					Pres     [][]YahooPeroid `json:"pre"`
+					Regulars [][]YahooPeroid `json:"regular"`
+					Posts    [][]YahooPeroid `json:"post"`
 				} `json:"tradingPeriods"`
 				DataGranularity string   `json:"dataGranularity"`
 				ValidRanges     []string `json:"validRanges"`
 			} `json:"meta"`
-			Timestamp  []int64 `json:"timestamp"`
+			Timestamp []uint64 `json:"timestamp"`
+			Events    struct {
+				Dividends map[uint64]YahooDividend `json:"dividends"`
+				Splits    map[uint64]YahooSplits   `json:"splits"`
+			} `json:"events"`
 			Indicators struct {
 				Quotes []struct {
 					Open   []float32 `json:"open"`
 					Close  []float32 `json:"close"`
 					High   []float32 `json:"high"`
 					Low    []float32 `json:"low"`
-					Volume []int64   `json:"volume"`
+					Volume []uint64  `json:"volume"`
 				} `json:"quote"`
 			} `json:"indicators"`
 		} `json:"result"`
@@ -224,4 +202,26 @@ type YahooQuote struct {
 			Description string `json:"description"`
 		} `json:"error"`
 	} `json:"chart"`
+}
+
+// YahooPeroid 时间段
+type YahooPeroid struct {
+	Timezone  string `json:"timezone"`
+	Start     uint64 `json:"start"`
+	End       uint64 `json:"end"`
+	GMTOffset int64  `json:"gmtoffset"`
+}
+
+// YahooDividend 股息
+type YahooDividend struct {
+	Amount float32 `json:"amount"`
+	Date   uint64  `json:"date"`
+}
+
+// YahooSplits 拆股
+type YahooSplits struct {
+	Date        uint64 `json:"date"`
+	Numerator   int    `json:"numerator"`
+	Denominator int    `json:"denominator"`
+	Ratio       string `json:"splitRatio"`
 }

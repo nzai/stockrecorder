@@ -7,6 +7,7 @@ import (
 
 	"github.com/guotie/gogb2312"
 	"github.com/nzai/go-utility/net"
+	"github.com/nzai/stockrecorder/quote"
 )
 
 // China 中国证券市场
@@ -23,9 +24,9 @@ func (m China) Timezone() string {
 }
 
 // Companies 上市公司
-func (m China) Companies() ([]Company, error) {
+func (m China) Companies() ([]quote.Company, error) {
 
-	dict := make(map[string]Company, 0)
+	dict := make(map[string]quote.Company, 0)
 
 	//	上海证券交易所
 	sh, err := m.shanghaiCompanies()
@@ -55,19 +56,19 @@ func (m China) Companies() ([]Company, error) {
 		dict[company.Code] = company
 	}
 
-	var companies []Company
+	var companies []quote.Company
 	for _, company := range dict {
 		companies = append(companies, company)
 	}
 
 	//	按Code排序
-	sort.Sort(CompanyList(companies))
+	sort.Sort(quote.CompanyList(companies))
 
 	return companies, nil
 }
 
 // shanghaiCompanies 上海证券交易所上市公司
-func (m China) shanghaiCompanies() ([]Company, error) {
+func (m China) shanghaiCompanies() ([]quote.Company, error) {
 
 	urls := [...]string{
 		"http://query.sse.com.cn/security/stock/downloadStockListFile.do?csrcCode=&stockCode=&areaName=&stockType=1",
@@ -75,7 +76,7 @@ func (m China) shanghaiCompanies() ([]Company, error) {
 	}
 	referer := "http://www.sse.com.cn/assortment/stock/list/share/"
 
-	var list []Company
+	var list []quote.Company
 	for _, url := range urls {
 
 		//	尝试从网络获取实时上市公司列表
@@ -97,7 +98,7 @@ func (m China) shanghaiCompanies() ([]Company, error) {
 }
 
 // parseShanghaiJSON 解析上海证券交易所上市公司
-func (m China) parseShanghaiJSON(text string) ([]Company, error) {
+func (m China) parseShanghaiJSON(text string) ([]quote.Company, error) {
 
 	//	深圳证券交易所的查询结果是GBK编码的，需要转成UTF8
 	text, err, _, _ := gogb2312.ConvertGB2312String(text)
@@ -109,9 +110,9 @@ func (m China) parseShanghaiJSON(text string) ([]Company, error) {
 	regex := regexp.MustCompile(`(\d{6})	  (\S+)	  \d{6}	  \S+`)
 	group := regex.FindAllStringSubmatch(text, -1)
 
-	var companies []Company
+	var companies []quote.Company
 	for _, section := range group {
-		companies = append(companies, Company{Code: section[1], Name: section[2]})
+		companies = append(companies, quote.Company{Code: section[1], Name: section[2]})
 	}
 
 	if len(companies) == 0 {
@@ -122,12 +123,12 @@ func (m China) parseShanghaiJSON(text string) ([]Company, error) {
 }
 
 //	深圳证券交易所上市公司
-func (m China) shenzhenCompanies() ([]Company, error) {
+func (m China) shenzhenCompanies() ([]quote.Company, error) {
 	urls := [...]string{
 		"http://www.szse.cn/szseWeb/ShowReport.szse?SHOWTYPE=EXCEL&CATALOGID=1110&tab1PAGENUM=1&ENCODE=1&TABKEY=tab1",
 	}
 
-	var list []Company
+	var list []quote.Company
 	for _, url := range urls {
 
 		//	尝试从网络获取实时上市公司列表
@@ -155,14 +156,14 @@ func (m China) shenzhenCompanies() ([]Company, error) {
 }
 
 // parseShenzhenHTML 解析深圳证券交易所上市公司
-func (m China) parseShenzhenHTML(html string) ([]Company, error) {
+func (m China) parseShenzhenHTML(html string) ([]quote.Company, error) {
 	//  使用正则分析html
 	regex := regexp.MustCompile(`\' ><td  align='center'  >(\d{6})</td><td  align='center'  >([^<]*?)</td>`)
 	group := regex.FindAllStringSubmatch(html, -1)
 
-	var companies []Company
+	var companies []quote.Company
 	for _, section := range group {
-		companies = append(companies, Company{Code: section[1], Name: section[2]})
+		companies = append(companies, quote.Company{Code: section[1], Name: section[2]})
 	}
 
 	if len(companies) == 0 {
@@ -173,7 +174,7 @@ func (m China) parseShenzhenHTML(html string) ([]Company, error) {
 }
 
 // YahooQueryCode 雅虎查询代码
-func (m China) YahooQueryCode(company Company) string {
+func (m China) YahooQueryCode(company quote.Company) string {
 
 	var suffix string
 	switch company.Code[:1] {

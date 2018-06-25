@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/nzai/go-utility/net"
+	"github.com/nzai/stockrecorder/quote"
 )
 
 // America 美国证券市场
@@ -23,7 +24,7 @@ func (m America) Timezone() string {
 }
 
 // Companies 上市公司
-func (m America) Companies() ([]Company, error) {
+func (m America) Companies() ([]quote.Company, error) {
 
 	urls := [...]string{
 		"http://www.nasdaq.com/screening/companies-by-industry.aspx?exchange=NASDAQ&render=download",
@@ -31,7 +32,7 @@ func (m America) Companies() ([]Company, error) {
 		"http://www.nasdaq.com/screening/companies-by-industry.aspx?exchange=AMEX&render=download",
 	}
 
-	var list []Company
+	var list []quote.Company
 	for _, url := range urls {
 
 		//	尝试从网络获取实时上市公司列表
@@ -50,13 +51,13 @@ func (m America) Companies() ([]Company, error) {
 	}
 
 	//	按Code排序
-	sort.Sort(CompanyList(list))
+	sort.Sort(quote.CompanyList(list))
 
 	return list, nil
 }
 
 //	解析CSV
-func (m America) parseCSV(content string) ([]Company, error) {
+func (m America) parseCSV(content string) ([]quote.Company, error) {
 
 	reader := csv.NewReader(strings.NewReader(content))
 	records, err := reader.ReadAll()
@@ -65,7 +66,7 @@ func (m America) parseCSV(content string) ([]Company, error) {
 	}
 
 	dict := make(map[string]bool, 0)
-	var companies []Company
+	var companies []quote.Company
 	for _, parts := range records[1:] {
 		if len(parts) < 2 {
 			return nil, fmt.Errorf("错误的美股上市公司CSV格式:%v", parts)
@@ -81,7 +82,7 @@ func (m America) parseCSV(content string) ([]Company, error) {
 		}
 		dict[parts[0]] = true
 
-		companies = append(companies, Company{
+		companies = append(companies, quote.Company{
 			Code: strings.Trim(parts[0], " "),
 			Name: strings.Trim(parts[1], " ")})
 	}
@@ -90,6 +91,6 @@ func (m America) parseCSV(content string) ([]Company, error) {
 }
 
 // YahooQueryCode 雅虎查询代码
-func (m America) YahooQueryCode(company Company) string {
+func (m America) YahooQueryCode(company quote.Company) string {
 	return company.Code
 }

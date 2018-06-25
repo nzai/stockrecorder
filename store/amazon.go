@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
-	"io/ioutil"
 	"strings"
 	"time"
 
-	"github.com/nzai/stockrecorder/market"
+	"github.com/nzai/stockrecorder/quote"
+	"go.uber.org/zap"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -51,12 +51,17 @@ func NewAmazonS3(s3config AmazonS3Config) AmazonS3 {
 	}
 }
 
+// savePath 保存到S3的路径
+func (s AmazonS3) savePath(exchange *quote.Exchange, date time.Time) string {
+	return fmt.Sprintf("%s%s/%s.mdq", s.config.KeyRoot, date.Format("2006/01/02"), strings.ToLower(exchange.Code))
+}
+
 // Exists 判断某天的数据是否存在
-func (s AmazonS3) Exists(_market market.Market, date time.Time) (bool, error) {
+func (s AmazonS3) Exists(exchange *quote.Exchange, date time.Time) (bool, error) {
 
 	_, err := s.svc.HeadObject(&s3.HeadObjectInput{
 		Bucket: aws.String(s.config.Bucket),
-		Key:    aws.String(s.savePath(_market, date)),
+		Key:    aws.String(s.savePath(exchange, date)),
 	})
 
 	if err == nil {
@@ -72,68 +77,67 @@ func (s AmazonS3) Exists(_market market.Market, date time.Time) (bool, error) {
 }
 
 // Save 保存
-func (s AmazonS3) Save(quote market.DailyQuote) error {
+func (s AmazonS3) Save(quote *quote.ExchangeDailyQuote) error {
 
 	// gzip 最高压缩
 	buffer := new(bytes.Buffer)
-	w, err := gzip.NewWriterLevel(buffer, gzip.BestCompression)
+	gw, err := gzip.NewWriterLevel(buffer, gzip.BestCompression)
 	if err != nil {
+		zap.L().Error("write quote gzip failed", zap.Error(err), zap.Any("exchange", quote.Exchange), zap.Time("date", quote.Date), zap.Int("companies", len(quote.Companies)))
 		return err
 	}
-	_, err = w.Write(quote.Marshal())
-	if err != nil {
-		return err
-	}
-	w.Flush()
-	w.Close()
 
-	zipped, err := ioutil.ReadAll(buffer)
+	err = quote.Marshal(gw)
 	if err != nil {
+		zap.L().Error("write quote gzip failed", zap.Error(err), zap.Any("exchange", quote.Exchange), zap.Time("date", quote.Date), zap.Int("companies", len(quote.Companies)))
 		return err
 	}
+
+	gw.Flush()
+	gw.Close()
 
 	// 上传
 	_, err = s.svc.PutObject(&s3.PutObjectInput{
 		Bucket:       aws.String(s.config.Bucket),
-		Key:          aws.String(s.savePath(quote.Market, quote.Date)),
-		Body:         bytes.NewReader(zipped),
+		Key:          aws.String(s.savePath(quote.Exchange, quote.Date)),
+		Body:         bytes.NewReader(buffer.Bytes()),
 		StorageClass: aws.String(s3.ObjectStorageClassReducedRedundancy),
 	})
+	if err != nil {
+		zap.L().Error("upload quote gzip failed", zap.Error(err), zap.Any("exchange", quote.Exchange), zap.Time("date", quote.Date), zap.Int("companies", len(quote.Companies)))
+		return err
+	}
 
 	return err
 }
 
-// savePath 保存到S3的路径
-func (s AmazonS3) savePath(_market market.Market, date time.Time) string {
-	return fmt.Sprintf("%s%s/%s.mdq", s.config.KeyRoot, date.Format("2006/01/02"), strings.ToLower(_market.Name()))
-}
-
 // Load 读取
-func (s AmazonS3) Load(_market market.Market, date time.Time) (market.DailyQuote, error) {
+func (s AmazonS3) Load(exchange *quote.Exchange, date time.Time) (*quote.ExchangeDailyQuote, error) {
 
-	mdq := market.DailyQuote{Market: _market, Date: date}
-
+	filePath := s.savePath(exchange, date)
 	output, err := s.svc.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(s.config.Bucket),
-		Key:    aws.String(s.savePath(_market, date)),
+		Key:    aws.String(s.savePath(exchange, date)),
 	})
 	if err != nil {
-		return mdq, err
+		zap.L().Error("load quote failed", zap.Error(err), zap.String("bucket", s.config.Bucket), zap.String("path", filePath))
+		return nil, err
 	}
 	defer output.Body.Close()
 
-	reader, err := gzip.NewReader(output.Body)
+	gr, err := gzip.NewReader(output.Body)
 	if err != nil {
-		return mdq, err
+		zap.L().Error("read quote gzip failed", zap.Error(err), zap.String("bucket", s.config.Bucket), zap.String("path", filePath))
+		return nil, err
 	}
-	defer reader.Close()
+	defer gr.Close()
 
-	buffer, err := ioutil.ReadAll(reader)
+	edq := new(quote.ExchangeDailyQuote)
+	err = edq.Unmarshal(gr)
 	if err != nil {
-		return mdq, err
+		zap.L().Error("unmarshal quote failed", zap.Error(err), zap.String("bucket", s.config.Bucket), zap.String("path", filePath))
+		return nil, err
 	}
 
-	mdq.Unmarshal(buffer)
-
-	return mdq, nil
+	return edq, nil
 }

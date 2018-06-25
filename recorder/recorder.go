@@ -6,7 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nzai/stockrecorder/market"
+	"github.com/nzai/stockrecorder/quote"
+
+	"github.com/nzai/stockrecorder/provider"
 	"github.com/nzai/stockrecorder/source"
 	"github.com/nzai/stockrecorder/store"
 )
@@ -17,92 +19,97 @@ const (
 
 // Recorder 股票记录器
 type Recorder struct {
-	source  source.Source   // 数据源
-	store   store.Store     // 存储
-	markets []market.Market // 市场
+	source    source.Source           // 数据源
+	store     store.Store             // 存储
+	providers []provider.DataProvider // 提供者
 }
 
 // NewRecorder 新建Recorder
-func NewRecorder(source source.Source, store store.Store, markets ...market.Market) *Recorder {
-	return &Recorder{source, store, markets}
+func NewRecorder(source source.Source, store store.Store, providers ...provider.DataProvider) *Recorder {
+	return &Recorder{source, store, providers}
 }
 
-// RunAndWait 执行
-func (r Recorder) RunAndWait() {
-	var wg sync.WaitGroup
-	wg.Add(len(r.markets))
+// Run 执行
+func (r Recorder) Run() *sync.WaitGroup {
+	wg := new(sync.WaitGroup)
+	wg.Add(len(r.providers))
 
-	for _, m := range r.markets {
-		go func(m market.Market) {
-			// 构造记录器
-			mr := marketRecorder{r.source, r.store, m}
-			// 启动
-			mr.RunAndWait()
-			wg.Done()
-		}(m)
+	for _, p := range r.providers {
+		go func(p provider.DataProvider, _wg *sync.WaitGroup) {
+			// 启动交易所记录器
+			newMarketRecorder(r.source, r.store, p.Exchange(), p).Run().Wait()
+			_wg.Done()
+		}(p, wg)
 	}
 
-	wg.Wait()
+	return wg
 }
 
 // marketRecorder 市场记录器
 type marketRecorder struct {
-	source        source.Source // 数据源
-	store         store.Store   // 存储
-	market.Market               // 市场
+	source   source.Source         // 数据源
+	store    store.Store           // 存储
+	exchange *quote.Exchange       // 交易所
+	provider provider.DataProvider // 提供者
+}
+
+// newMarketRecorder 新建市场记录器
+func newMarketRecorder(source source.Source, store store.Store, exchange *quote.Exchange, provider provider.DataProvider) *marketRecorder {
+	return &marketRecorder{source, store, exchange, provider}
 }
 
 // RunAndWait 启动市场记录器
-func (mr marketRecorder) RunAndWait() {
+func (r marketRecorder) Run() *sync.WaitGroup {
+	wg := new(sync.WaitGroup)
+	wg.Add(2)
 
 	// 获取市场所在地到明天零点的时间差
-	now := mr.marketNow()
-	duration := mr.durationToNextDay(now)
+	now := r.marketNow()
+	duration := r.durationToNextDay(now)
 
 	// 抓取历史数据
-	go func(todayZero time.Time) {
-		log.Printf("[%s] 获取历史数据开始", mr.Name())
-		err := mr.crawlHistoryData(todayZero)
+	go func(todayZero time.Time, _wg *sync.WaitGroup) {
+		log.Printf("[%s] 获取历史数据开始", r.exchange.Name)
+		err := r.crawlHistoryData(todayZero)
 		if err != nil {
-			log.Printf("[%s] 获取历史数据时发生错误: %v", mr.Name(), err)
+			log.Printf("[%s] 获取历史数据时发生错误: %v", r.exchange.Name, err)
 			return
 		}
-		log.Printf("[%s] 获取历史数据结束", mr.Name())
-	}(now.Add(duration).AddDate(0, 0, -1))
+		log.Printf("[%s] 获取历史数据结束", r.exchange.Name)
+		_wg.Done()
+	}(now.Add(duration).AddDate(0, 0, -1), wg)
 
 	// 持续抓取每日数据
-	for {
-		log.Printf("[%s] 定时任务已启动，将于%s后激活下一次任务", mr.Name(), duration.String())
-		<-time.After(duration)
-		yesterday := mr.marketNow().AddDate(0, 0, -1)
-		log.Printf("[%s] 获取%s的数据开始", mr.Name(), yesterday.Format(datePattern))
-		err := mr.crawlYesterdayData(yesterday)
-		if err != nil {
-			log.Printf("[%s] 获取%s的数据时发生错误: %v", mr.Name(), yesterday.Format(datePattern), err)
-		} else {
-			log.Printf("[%s] 获取%s的数据结束", mr.Name(), yesterday.Format(datePattern))
+	go func() {
+		log.Printf("[%s] 定时任务已启动，将于%s后激活下一次任务", r.exchange.Name, duration.String())
+		for {
+			<-time.After(duration)
+			yesterday := r.marketNow().AddDate(0, 0, -1)
+			log.Printf("[%s] 获取%s的数据开始", r.exchange.Name, yesterday.Format(datePattern))
+			err := r.crawlYesterdayData(yesterday)
+			if err != nil {
+				log.Printf("[%s] 获取%s的数据时发生错误: %v", r.exchange.Name, yesterday.Format(datePattern), err)
+			} else {
+				log.Printf("[%s] 获取%s的数据结束", r.exchange.Name, yesterday.Format(datePattern))
+			}
+
+			// 每天调整延时时长，保证长时间运行的时间精度
+			duration = r.durationToNextDay(r.marketNow())
 		}
 
-		// 每天调整延时时长，保证长时间运行的时间精度
-		duration = mr.durationToNextDay(mr.marketNow())
-	}
+		// wg.Done()
+	}()
+
+	return wg
 }
 
 // marketNow 市场所处时区当前时间
-func (mr marketRecorder) marketNow() time.Time {
-	now := time.Now()
-
-	//	获取市场所在时区
-	location, err := time.LoadLocation(mr.Market.Timezone())
-	if err != nil {
-		return now
-	}
-
-	return now.In(location)
+func (r marketRecorder) marketNow() time.Time {
+	return time.Now().In(r.exchange.Location)
 }
 
 // durationToNextDay 现在到明天0点的时间间隔
-func (mr marketRecorder) durationToNextDay(now time.Time) time.Duration {
+func (r marketRecorder) durationToNextDay(now time.Time) time.Duration {
 
 	year, month, day := now.AddDate(0, 0, 1).Date()
 
@@ -113,30 +120,30 @@ func (mr marketRecorder) durationToNextDay(now time.Time) time.Duration {
 }
 
 // crawlHistoryData 抓取历史数据
-func (mr marketRecorder) crawlHistoryData(todayZero time.Time) error {
+func (r marketRecorder) crawlHistoryData(todayZero time.Time) error {
 
 	// 起始日期(含)
-	date := todayZero.Add(-mr.source.Expiration())
-	log.Printf("[%s]抓取历史数据起始日期: %s  结束日期: %s", mr.Name(), date.Format(datePattern), todayZero.Format(datePattern))
+	date := todayZero.Add(-r.source.Expiration())
+	log.Printf("[%s]抓取历史数据起始日期: %s  结束日期: %s", r.exchange.Name, date.Format(datePattern), todayZero.Format(datePattern))
 
 	// 获取上市公司
-	companies, err := mr.Market.Companies()
+	companies, err := r.provider.Companies()
 	if err != nil {
 		return err
 	}
-	log.Printf("[%s] 共有%d家上市公司", mr.Name(), len(companies))
+	log.Printf("[%s] 共有%d家上市公司", r.exchange.Name, len(companies))
 
 	for date.Before(todayZero) {
 
 		// 避免重复记录
-		exists, err := mr.store.Exists(mr.Market, date)
+		exists, err := r.store.Exists(r.exchange, date)
 		if err != nil {
 			return err
 		}
 
 		if !exists {
 			// 抓取那一天的报价
-			err = mr.crawl(companies, date)
+			err = r.crawl(companies, date)
 			if err != nil {
 				return err
 			}
@@ -150,53 +157,49 @@ func (mr marketRecorder) crawlHistoryData(todayZero time.Time) error {
 }
 
 // crawlYesterdayData 每天0点抓取前一天的数据
-func (mr marketRecorder) crawlYesterdayData(yesterday time.Time) error {
+func (r marketRecorder) crawlYesterdayData(yesterday time.Time) error {
 
 	// 避免重复记录
-	recorded, err := mr.store.Exists(mr.Market, yesterday)
+	recorded, err := r.store.Exists(r.exchange, yesterday)
 	if err != nil || recorded {
 		return err
 	}
 
 	// 获取上市公司
-	companies, err := mr.Market.Companies()
+	companies, err := r.provider.Companies()
 	if err != nil {
 		return err
 	}
-	log.Printf("[%s] 共有%d家上市公司", mr.Name(), len(companies))
+	log.Printf("[%s] 共有%d家上市公司", r.exchange.Name, len(companies))
 
-	// 抓取
-	return mr.crawl(companies, yesterday)
+	// 抓取昨日数据
+	return r.crawl(companies, yesterday)
 }
 
 // crawl 抓取指定日期的市场报价
-func (mr marketRecorder) crawl(companies []market.Company, date time.Time) error {
+func (r marketRecorder) crawl(companies []*quote.Company, date time.Time) error {
 
-	ch := make(chan bool, mr.source.ParallelMax())
+	ch := make(chan bool, r.source.ParallelMax())
 	defer close(ch)
 
 	var wg sync.WaitGroup
 	wg.Add(len(companies))
 
-	_, offset := date.Zone()
-
-	dailyQuote := market.DailyQuote{
-		Market:    mr.Market,
-		Date:      date,
-		UTCOffset: offset,
-	}
-
+	mutex := new(sync.Mutex)
+	cdqs := make(map[string]*quote.CompanyDailyQuote, len(companies))
 	for _, company := range companies {
 
-		go func(_market market.Market, _company market.Company, _date time.Time) {
-			quote, err := mr.source.Crawl(_market, _company, _date)
+		go func(exchange *quote.Exchange, _company *quote.Company, _date time.Time, _mutex *sync.Mutex, quotes map[string]*quote.CompanyDailyQuote) {
+			cdq, err := r.source.Crawl(exchange, _company, _date)
 			if err == nil {
-				dailyQuote.Quotes = append(dailyQuote.Quotes, *quote)
+				mutex.Lock()
+				quotes[cdq.Code] = cdq
+				mutex.Unlock()
 			}
 
 			<-ch
 			wg.Done()
-		}(mr.Market, company, date)
+		}(r.exchange, company, date, mutex, cdqs)
 
 		// 限流
 		ch <- false
@@ -204,13 +207,19 @@ func (mr marketRecorder) crawl(companies []market.Company, date time.Time) error
 	//	阻塞，直到抓取所有
 	wg.Wait()
 
-	// 保存
-	err := mr.store.Save(dailyQuote)
-	if err != nil {
-		return fmt.Errorf("[%s] 保存上市公司在%s的分时数据时发生错误: %v", mr.Market.Name(), date.Format(datePattern), err)
+	edq := &quote.ExchangeDailyQuote{
+		Exchange:  r.exchange,
+		Date:      date,
+		Companies: cdqs,
 	}
 
-	log.Printf("[%s] 上市公司在%s的分时数据已经抓取结束", mr.Market.Name(), date.Format(datePattern))
+	// 保存
+	err := r.store.Save(edq)
+	if err != nil {
+		return fmt.Errorf("[%s] 保存上市公司在%s的分时数据时发生错误: %v", r.exchange.Name, date.Format(datePattern), err)
+	}
+
+	log.Printf("[%s] 上市公司在%s的分时数据已经抓取结束", r.exchange.Name, date.Format(datePattern))
 
 	return nil
 }
