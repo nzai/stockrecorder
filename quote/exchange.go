@@ -78,6 +78,7 @@ func (e *Exchange) Unmarshal(r io.Reader) error {
 	yahooSuffix, err := br.String()
 	if err != nil {
 		zap.L().Error("read exchange yahoo suffix failed", zap.Error(err))
+		return err
 	}
 
 	e.Code = code
